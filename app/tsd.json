@@ -26,10 +26,10 @@
     "lodash/lodash.d.ts": {
       "commit": "4dd796bb15c51e5bc0efd74605fbc9de46773ca5"
     },
-    "request/request.d.ts": {
+    "form-data/form-data.d.ts": {
       "commit": "4dd796bb15c51e5bc0efd74605fbc9de46773ca5"
     },
-    "form-data/form-data.d.ts": {
+    "request/request.d.ts": {
       "commit": "4dd796bb15c51e5bc0efd74605fbc9de46773ca5"
     }
   }

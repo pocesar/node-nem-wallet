@@ -228,3 +228,4 @@ angular.module('app', ['ui.router']).service('Java', Services.Java).provider('Ne
             gui.Shell.openExternal(url);
         });
     }]);
+//# sourceMappingURL=boot.js.map

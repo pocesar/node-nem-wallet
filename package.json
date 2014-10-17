@@ -5,8 +5,10 @@
     "grunt": "0.4.x",
     "grunt-contrib-concat": "0.x.x",
     "grunt-ejs": "0.x.x",
-    "grunt-node-webkit-builder": "0.x.x",
-    "grunt-ts": "1.x.x"
+    "grunt-node-webkit-builder": "0.x.x"
+  },
+  "peerDependencies": {
+    "typescript": "1.x"
   },
   "keywords": [
     "nem",
@@ -16,7 +18,9 @@
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "grunt build && nodewebkit app"
+    "start": "npm run build && nodewebkit app",
+    "ts": "tsc --module commonjs --noImplicitAny --outDir app/js --removeComments --sourcemap --target ES5 reference.d.ts",
+    "build": "npm run ts && grunt build"
   },
   "repository": {
     "type": "git",
