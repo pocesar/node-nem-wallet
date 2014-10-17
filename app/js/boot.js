@@ -17,6 +17,105 @@ function templateAsString(filename) {
 
 var Controllers;
 (function (Controllers) {
+    var About = (function () {
+        function About() {
+        }
+        About.$inject = [];
+        return About;
+    })();
+    Controllers.About = About;
+
+    var Backup = (function () {
+        function Backup() {
+        }
+        Backup.$inject = [];
+        return Backup;
+    })();
+    Controllers.Backup = Backup;
+
+    var Market = (function () {
+        function Market($scope) {
+            var _this = this;
+            this.current = 'btc';
+            this.config = {
+                scaleBeginAtZero: false,
+                pointDot: false,
+                showScale: true,
+                scaleShowGridLines: true,
+                datasetFill: false,
+                pointDotStrokeWidth: 0,
+                pointHitDetectionRadius: 0
+            };
+            this.fetch().then(function (total) {
+                $scope.$apply(function () {
+                    var btc = [], usd = [], times = [], limit = 20;
+
+                    _.forEach(total['price_btc_data'], function (item, key) {
+                        if (key % 16 === 16) {
+                            times.push((new Date(item[0])).toLocaleString());
+                        }
+                        btc.push(item[1]);
+                    });
+
+                    _.forEach(total['price_usd_data'], function (item) {
+                        usd.push(item[1]);
+                    });
+
+                    _this.usd = {
+                        labels: times,
+                        datasets: [
+                            {
+                                label: 'BTC',
+                                fillColor: 'rgba(220,220,220,0.2)',
+                                strokeColor: 'rgba(220,220,220,1)',
+                                pointColor: 'rgba(220,220,220,1)',
+                                pointStrokeColor: '#fff',
+                                pointHighlightFill: '#fff',
+                                pointHighlightStroke: 'rgba(220,220,220,1)',
+                                data: btc
+                            }
+                        ]
+                    };
+                    _this.btc = {
+                        labels: times,
+                        datasets: [
+                            {
+                                label: 'USD',
+                                fillColor: 'rgba(151,187,205,0.2)',
+                                strokeColor: 'rgba(151,187,205,1)',
+                                pointColor: 'rgba(151,187,205,1)',
+                                pointStrokeColor: '#fff',
+                                pointHighlightFill: '#fff',
+                                pointHighlightStroke: 'rgba(151,187,205,1)',
+                                data: usd
+                            }
+                        ]
+                    };
+                });
+            });
+        }
+        Market.prototype.fetch = function () {
+            return new Promise(function (resolve, reject) {
+                var req = request.get('http://coinmarketcap.com/static/generated_pages/currencies/datapoints/nemstake-1d.json'), total = '';
+
+                req.on('data', function (res) {
+                    total += res.toString();
+                });
+
+                req.on('error', function (res) {
+                    reject(res);
+                });
+
+                req.on('end', function (res) {
+                    resolve(JSON.parse(total));
+                });
+            });
+        };
+        Market.$inject = ['$scope'];
+        return Market;
+    })();
+    Controllers.Market = Market;
+
     var News = (function () {
         function News($scope, $sce) {
             var _this = this;
@@ -342,7 +441,7 @@ var Services;
     Services.Java = Java;
 })(Services || (Services = {}));
 
-angular.module('app', ['ui.router', 'ngSanitize']).service('Java', Services.Java).service('Log', Services.Log).directive('serverLog', Directives.ServerLog.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config([
+angular.module('app', ['ui.router', 'ngSanitize', 'angles']).service('Java', Services.Java).service('Log', Services.Log).directive('serverLog', Directives.ServerLog.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config([
     '$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', function ($stateProvider, $locationProvider, $urlRouterProvider, NemPropertiesProvider) {
         NemPropertiesProvider.instance('nis', {
             nis: true,
@@ -403,6 +502,27 @@ angular.module('app', ['ui.router', 'ngSanitize']).service('Java', Services.Java
             controller: Controllers.News,
             controllerAs: 'news',
             template: templateAsString('news.html')
+        });
+
+        $stateProvider.state('about', {
+            url: '/about',
+            controller: Controllers.About,
+            controllerAs: 'about',
+            template: templateAsString('about.html')
+        });
+
+        $stateProvider.state('market', {
+            url: '/market',
+            controller: Controllers.Market,
+            controllerAs: 'market',
+            template: templateAsString('market.html')
+        });
+
+        $stateProvider.state('backup', {
+            url: '/backup',
+            controller: Controllers.Backup,
+            controllerAs: 'backup',
+            template: templateAsString('backup.html')
         });
 
         $stateProvider.state('ncc', {

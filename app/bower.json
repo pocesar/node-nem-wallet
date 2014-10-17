@@ -25,6 +25,9 @@
     "bootbox": "4.x.x",
     "angular-i18n": "1.x.x",
     "font-awesome": "4.x.x",
-    "angular-sanitize": "1.x.x"
+    "angular-sanitize": "1.x.x",
+    "angular-charts": "0.x.x",
+    "chartjs": "~0.2.0",
+    "angles": "*"
   }
 }

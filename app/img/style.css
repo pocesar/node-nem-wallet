@@ -12,6 +12,21 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+.invisible {
+    visibility: hidden;
+}
+
+.chart {
+    position: relative;
+    height: 600px;
+}
+
+.chart canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
 .ncc-iframe {
     border: 0;
     width: 100%;

@@ -53,15 +53,117 @@ function templateAsString(filename: string): Promise<string> {
 
 module Controllers {
 
+    export class About {
+        static $inject: string[] = [];
+
+        constructor() {
+
+        }
+    }
+
+    export class Backup {
+        static $inject: string[] = [];
+
+        constructor() {
+
+        }
+    }
+
+    export class Market {
+        static $inject: string[] = ['$scope'];
+        public usd: any;
+        public btc: any;
+        public current: string = 'btc';
+        public config: any = {
+            scaleBeginAtZero: false,
+            pointDot : false,
+            showScale: true,
+            scaleShowGridLines : true,
+            datasetFill: false,
+            pointDotStrokeWidth : 0,
+            pointHitDetectionRadius : 0
+        };
+
+        fetch(): Promise<Object> {
+            return new Promise<Object>((resolve: any, reject: any) => {
+                var
+                    req: request.Request = request.get('http://coinmarketcap.com/static/generated_pages/currencies/datapoints/nemstake-1d.json'),
+                    total: string = '';
+
+                req.on('data', (res: any) => {
+                    total += res.toString();
+                });
+
+                req.on('error', (res: any) => {
+                    reject(res);
+                });
+
+                req.on('end', (res: any) =>{
+                    resolve(JSON.parse(total));
+                });
+            });
+        }
+
+        constructor($scope: ng.IScope) {
+            this.fetch().then((total: any) => {
+                $scope.$apply(() => {
+                    var btc: any = [], usd: any = [], times: any = [], limit: number = 20;
+
+                    _.forEach(total['price_btc_data'], (item: any, key: number) => {
+                        if (key % 16 === 16) {
+                            times.push((new Date(item[0])).toLocaleString());
+                        }
+                        btc.push(item[1]);
+                    });
+
+                    _.forEach(total['price_usd_data'], (item: any) => {
+                        usd.push(item[1]);
+                    });
+
+                    this.usd = {
+                        labels: times,
+                        datasets: [
+                            {
+                                label: 'BTC',
+                                fillColor: 'rgba(220,220,220,0.2)',
+                                strokeColor: 'rgba(220,220,220,1)',
+                                pointColor: 'rgba(220,220,220,1)',
+                                pointStrokeColor: '#fff',
+                                pointHighlightFill: '#fff',
+                                pointHighlightStroke: 'rgba(220,220,220,1)',
+                                data: btc
+                            },
+                        ]
+                    };
+                    this.btc = {
+                        labels: times,
+                        datasets: [
+                            {
+                                label: 'USD',
+                                fillColor: 'rgba(151,187,205,0.2)',
+                                strokeColor: 'rgba(151,187,205,1)',
+                                pointColor: 'rgba(151,187,205,1)',
+                                pointStrokeColor: '#fff',
+                                pointHighlightFill: '#fff',
+                                pointHighlightStroke: 'rgba(151,187,205,1)',
+                                data: usd
+                            }
+                        ]
+                    };
+                });
+            });
+        }
+    }
+
     export class News {
         public FeedParser: any = require('feedparser');
         public news: any[];
-        public static $inject: string[] = ['$scope','$sce'];
+        static $inject: string[] = ['$scope','$sce'];
 
         fetch(): Promise<any> {
             return new Promise<any>((resolve: any, reject: any) => {
                 var
-                    req: any = request('https://forum.nemcoin.com/index.php?type=rss;action=.xml'),
+                    req: request.Request = request('https://forum.nemcoin.com/index.php?type=rss;action=.xml'),
                     feedparser: any = new this.FeedParser(),
                     items: any[] = [];
 
@@ -377,7 +479,7 @@ module Services {
 }
 
 angular
-.module('app', ['ui.router','ngSanitize'])
+.module('app', ['ui.router','ngSanitize','angles'])
 .service('Java', Services.Java)
 .service('Log', Services.Log)
 .directive('serverLog', Directives.ServerLog.instance())
@@ -448,6 +550,27 @@ angular
         controller: Controllers.News,
         controllerAs: 'news',
         template: templateAsString('news.html')
+    });
+
+    $stateProvider.state('about', {
+        url: '/about',
+        controller: Controllers.About,
+        controllerAs: 'about',
+        template: templateAsString('about.html')
+    });
+
+    $stateProvider.state('market', {
+        url: '/market',
+        controller: Controllers.Market,
+        controllerAs: 'market',
+        template: templateAsString('market.html')
+    });
+
+    $stateProvider.state('backup', {
+        url: '/backup',
+        controller: Controllers.Backup,
+        controllerAs: 'backup',
+        template: templateAsString('backup.html')
     });
 
     $stateProvider.state('ncc', {
