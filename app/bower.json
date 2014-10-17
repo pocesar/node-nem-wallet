@@ -24,6 +24,7 @@
     "angular-ui-router": "0.x.x",
     "bootbox": "4.x.x",
     "angular-i18n": "1.x.x",
-    "font-awesome": "4.x.x"
+    "font-awesome": "4.x.x",
+    "angular-sanitize": "1.x.x"
   }
 }

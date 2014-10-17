@@ -1,0 +1,15 @@
+<div class="container pad-top">
+    <ul class="media-list">
+        <li class="media" ng-repeat="(title, item) in news.news">
+            <div class="panel panel-primary">
+                <div class="panel-heading">
+                    <h4 class="panel-title"><a target="_blank" href="{{item.url}}">{{item.title}}</a></h4>
+                    <time>{{item.date | date:'short'}}</time>
+                </div>
+                <div class="panel-body">
+                    <p ng-bind-html="item.summary"></p>
+                </div>
+            </div>
+        </li>
+    </ul>
+</div>

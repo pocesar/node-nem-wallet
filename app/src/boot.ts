@@ -5,9 +5,11 @@ import path = require('path');
 import child_process = require('child_process');
 import request = require('request');
 import gui = require('nw.gui');
+import _ = require('lodash');
 
 var
     win: gui.Window = gui.Window.get(),
+    semver: any = require('semver'),
     fs: any = Promise.promisifyAll(require('fs'));
 
 interface IJavaVersion {
@@ -43,20 +45,28 @@ interface INEMConfig {
     unlockedLimit?: number;
 }
 
+function templateAsString(filename: string): Promise<string> {
+    return fs.readFileAsync(path.join(process.cwd(), 'templates', filename)).then((v: Buffer) => {
+        return v.toString();
+    });
+}
+
 module Controllers {
 
     export class News {
         public FeedParser: any = require('feedparser');
         public news: any[];
+        public static $inject: string[] = ['$scope','$sce'];
 
         fetch(): Promise<any> {
             return new Promise<any>((resolve: any, reject: any) => {
                 var
                     req: any = request('https://forum.nemcoin.com/index.php?type=rss;action=.xml'),
-                    feedparser: any = new this.FeedParser();
+                    feedparser: any = new this.FeedParser(),
+                    items: any[] = [];
 
                 req.on('error', (error: any) => {
-
+                    console.log(error);
                 });
 
                 req.on('response', function (res: any) {
@@ -76,21 +86,46 @@ module Controllers {
                 feedparser.on('readable', function() {
                     // This is where the action is!
                     var stream: any = this,
-                        items: any[] = [],
                         meta: any = this.meta,
                         item: any;
 
                     while (item = stream.read()) {
                         items.push(item);
                     }
+                });
 
-                    resolve(items);
+                feedparser.on('end', function(){
+                    var _items: any = {};
+                    _.forEach(items, (item: any) => {
+                        if (!_items[item.title]) {
+                            _items[item.title] = {
+                                title: item.title,
+                                url: item.permalink,
+                                summary: item.summary,
+                                date: new Date(item.date)
+                            };
+                        }
+                    });
+                    resolve(_items);
                 });
             });
         }
 
-        constructor() {
+        getUrl(item: any) {
+            return this.$sce.parseAsUrl(item.url);
         }
+
+        constructor($scope: ng.IScope, private $sce: ng.ISCEService) {
+            this.fetch().then((av: any) => {
+                $scope.$apply(() => {
+                    this.news = av;
+                });
+            });
+        }
+    }
+
+    export class Log {
+        static $inject: string[] = ['Log'];
     }
 
     export class Config {
@@ -104,11 +139,6 @@ module Controllers {
     export class Main {
         static $inject: string[] = ['$state'];
 
-        clicky() {
-            alert('click');
-            this.$state.go('ncc');
-        }
-
         constructor(private $state: ng.ui.IStateService) {}
     }
 
@@ -117,16 +147,28 @@ module Controllers {
         static $inject: string[] = ['NemProperties', '$sce'];
         public url: any;
 
-        constructor(NEM: Providers.NemConfig, $sce: ng.ISCEService) {
-
-            this.url = $sce.trustAsResourceUrl(NEM.config[NEM.config.protocol] + '://' + NEM.config.host + ':' + NEM.config.homePath);
-
+        constructor(NEM: Providers.INemConfigInstance, $sce: ng.ISCEService) {
+            var config: INEMConfig = NEM.instance('ncc').config;
+            this.url = $sce.trustAsResourceUrl(config.protocol + '://' + config.host + ':' + config[config.protocol + 'Port'] + config.homePath);
+            console.log(this.url);
         }
     }
 
 }
 
 module Directives {
+
+    export class ServerLog implements ng.IDirective {
+        public restrict: string = 'E';
+
+        constructor() {
+
+        }
+
+        static instance(){
+            return [() => new this];
+        }
+    }
 
     export class Loading implements ng.IDirective {
         public template: string = '<div class="loading_indicator_container"><div class="loading_indicator"><img src="img/loading-bars.svg" /></div></div>';
@@ -146,18 +188,23 @@ module Directives {
 
 module Providers {
 
+    export interface INemConfigInstance {
+        killAll(): void;
+        instance(instanceName: string): NemConfig;
+    }
+
     export class NemConfig {
-        public templateUrl: string = 'templates/nem.properties.mustache';
         public Hogan: any = require('hogan.js');
-        public template: any;
+        public template: any = this.Hogan.compile(templateAsString('nem.properties.mustache'));
         public config: INEMConfig = {};
+        private child: child_process.ChildProcess;
 
         render(data: INEMConfig = {}): string {
             return this.template.render(_.defaults(this.config, data));
         }
 
-        saveToFile(path: string): Promise<boolean> {
-            return fs.writeFileAsync(path, this.render());
+        saveToFile(): Promise<boolean> {
+            return fs.writeFileAsync(path.join(this.config.folder, 'config.properties'), this.render());
         }
 
         set(config?: INEMConfig): NemConfig {
@@ -167,30 +214,97 @@ module Providers {
             return this;
         }
 
-        constructor(data?: INEMConfig) {
-            this.template = this.Hogan.compile(this.templateUrl);
+        kill(signal: string = 'SIGTERM') {
+            if (this.child) {
+                this.child.kill(signal);
+            }
+        }
+
+        run() {
+            this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
+                cwd: path.join(this.config.folder, this.name),
+                env: process.env
+            });
+
+            this.child.stderr.on('data', (data: Buffer) => {
+                console.log('stderr', data.toString());
+            });
+
+            this.child.stdout.on('data', (data: Buffer) => {
+                console.log('stdout', data.toString());
+            });
+
+            this.child.on('close', () => {
+
+            });
+
+            this.child.on('error', () => {
+
+            });
+        }
+
+        constructor(private name: string, data: INEMConfig = null) {
             this.set(data);
         }
     }
 
     export class NemProperties {
-        public config: NemConfig;
+        public instances: {[index: string]: NemConfig} = {};
 
-        $get() {
-            return this.config;
+        $get(): INemConfigInstance {
+            return {
+                instance: (instance: string) => {
+                    return this.instances[instance];
+                },
+                killAll: () => {
+                    _.forEach(this.instances, (instance) => {
+                        instance.kill();
+                    });
+                }
+            };
         }
 
-        constructor() {
-            this.config = new NemConfig();
+        instance(name: string, data: INEMConfig = {}) {
+            return this.instances[name] = new NemConfig(name, data);
         }
     }
 }
 
 module Services {
 
+    export interface ILog {
+        time: number;
+        msg: string;
+    }
+
+    export class Log {
+        public logs: {[index: string]: ILog[]} = {};
+
+        add(msg: string, group: string = 'global') {
+            if (typeof this.logs[group] === 'undefined') {
+                this.logs[group] = [];
+            }
+            this.logs[group].unshift({time: Date.now(), msg: msg});
+            return this;
+        }
+
+        limit(limit: number = 20, start: number = 0, group: string = 'global') {
+            if (typeof this.logs[group] === 'undefined') {
+                return [];
+            }
+            return this.logs[group].slice(start, limit);
+        }
+
+        constructor() {
+
+        }
+    }
+
     export class Java {
+        static $inject = ['Log'];
         static javaUrl: string = 'http://www.oracle.com/technetwork/java/javase/downloads/jre8-downloads-2133155.html';
         static jreRegex: string = 'https?:\/\/download\.oracle\.com\/otn-pub\/java\/jdk\/[^\/]+?\/jre-[^\-]+?-';
+        static versionRegex: RegExp = /java version "([\.\d]+)[^"]+"/;
         static javaVersions: IJavaVersions = {
             'darwin': {
                 'arm': '',
@@ -218,6 +332,7 @@ module Services {
                 'x64': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98428'
             }
         };
+        public javaBin: string;
 
         getUrl(): any {
             var obj: any;
@@ -231,25 +346,77 @@ module Services {
             return false;
         }
 
-        constructor(){
+        decide(): Promise<any> {
+            return new Promise<any>((resolve: any, reject: any) => {
+                var child: child_process.ChildProcess = child_process.spawn('java', ['-version'], {env: process.env});
 
+                child.on('error', (err: Error) => {
+                    reject(err);
+                });
+
+                child.stderr.on('data', (result: Buffer) => {
+                    var version = result.toString().match(Java.versionRegex);
+
+                    if (version && typeof version[1] === 'string') {
+                        if (semver.satisfies(version[1], '>=1.8.0')) {
+                            this.javaBin = 'java';
+                            resolve(true);
+                        } else {
+                            reject(new Error('Java version less than 1.8'));
+                        }
+                    } else {
+                        reject(new Error('No Java version found'));
+                    }
+                });
+            });
         }
+
+        constructor(public Log: Services.Log){ }
     }
 
 }
 
 angular
-.module('app', ['ui.router'])
+.module('app', ['ui.router','ngSanitize'])
 .service('Java', Services.Java)
+.service('Log', Services.Log)
+.directive('serverLog', Directives.ServerLog.instance())
 .provider('NemProperties', Providers.NemProperties)
+.directive('loading', Directives.Loading.instance())
 .config(['$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', (
     $stateProvider: ng.ui.IStateProvider,
     $locationProvider: ng.ILocationProvider,
     $urlRouterProvider: ng.ui.IUrlRouterProvider,
     NemPropertiesProvider: Providers.NemProperties) => {
 
-    NemPropertiesProvider.config.set({
+    NemPropertiesProvider.instance('nis',{
+        nis: true,
+        folder: path.join(process.cwd(), 'nem'),
+        shortServerName: 'Nis',
+        maxThreads: 500,
+        protocol: 'http',
+        host: '127.0.0.1',
+        httpPort: 7890,
+        httpsPort: 7891,
+        useDosFilter: true,
+        nodeLimit: 20,
+        bootWithoutAck: false,
+        useBinaryTransport: true,
+        useNetworkTime: true
+    });
 
+    NemPropertiesProvider.instance('ncc', {
+        shortServerName: 'Ncc',
+        folder: path.join(process.cwd(), 'nem'),
+        maxThreads: 50,
+        protocol: 'http',
+        host: '127.0.0.1',
+        httpPort: 8989,
+        httpsPort: 9090,
+        webContext: '/ncc/web',
+        apiContext: '/ncc/api',
+        homePath: '/index.html',
+        useDosFilter: false
     });
 
     $urlRouterProvider.otherwise('/');
@@ -259,29 +426,51 @@ angular
         url: '/',
         controller: Controllers.Main,
         controllerAs: 'main',
-        templateUrl: 'templates/main.html'
+        template: templateAsString('main.html')
     });
 
     $stateProvider.state('config', {
         url: '/config',
-        controller: Controllers.Config
+        controller: Controllers.Config,
+        controllerAs: 'config',
+        template: templateAsString('config.html')
+    });
+
+    $stateProvider.state('log', {
+        url: '/log',
+        controller: Controllers.Log,
+        controllerAs: 'log',
+        template: templateAsString('log.html')
     });
 
     $stateProvider.state('news', {
         url: '/news',
-        controller: Controllers.News
+        controller: Controllers.News,
+        controllerAs: 'news',
+        template: templateAsString('news.html')
     });
 
     $stateProvider.state('ncc', {
         url: '/ncc',
-        template: '<iframe ng-src="{{ncc.url}}" frameBorder="0" nwdisable></iframe>',
+        template: '<iframe ng-src="{{ncc.url}}" frameBorder="0" class="ncc-iframe" nwdisable></iframe>',
         controllerAs: 'ncc',
         controller: Controllers.NCC
     });
 }])
-.run([() => {
+.run(['Java', 'NemProperties', '$templateCache', (
+    Java: Services.Java,
+    NemProperties: Providers.INemConfigInstance,
+    $templateCache: ng.ITemplateCacheService
+    ) => {
+
+    //Java.decide().then(() => {
+    //    NemProperties.instance('nis').run();
+    //});
+
     win.on('close', function() {
-        win.hide();
+        //win.hide();
+        NemProperties.killAll();
+        process.exit();
     });
 
     win.on('new-win-policy', function(frame: any, url: string, policy: any) {

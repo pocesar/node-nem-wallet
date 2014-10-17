@@ -18,14 +18,15 @@
     "ncp": "0.x.x",
     "rimraf": "2.x.x",
     "semver": "4.x",
-    "temp": "0.x.x"
+    "temp": "0.x.x",
+    "glob": "4.x.x"
   },
   "window": {
     "width": 1250,
     "height": 800,
     "show": true,
     "title": "NEM Wallet",
-    "toolbar": true,
+    "toolbar": false,
     "icon": "img/logo.png"
   },
   "devDependencies": {},

@@ -1,15 +1,29 @@
 <!DOCTYPE html>
 <head>
 <meta charset="utf-8">
+<link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.css" />
+<link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap-theme.css" />
 <link rel="stylesheet" href="img/style.css" />
 <title>NEM Wallet v<%= version %></title>
 </head>
 <body ng-app="app">
     <div ui-view></div>
 
+    <nav class="navbar navbar-default navbar-fixed-bottom" role="navigation">
+      <div class="container">
+        <ul class="nav navbar-nav">
+            <li ui-sref="ncc" ui-sref-active="active" class=""><a>NCC</a></li>
+            <li ui-sref="log" ui-sref-active="active" class=""><a>Log</a></li>
+            <li ui-sref="config" ui-sref-active="active" class=""><a>Config</a></li>
+            <li ui-sref-active="active" class=""><a ui-sref="news">News</a></li>
+        </ul>
+      </div>
+    </nav>
+
     <script src="bower_components/jquery/dist/jquery.js"></script>
     <script src="bower_components/bootbox/bootbox.js"></script>
     <script src="bower_components/angular/angular.js"></script>
+    <script src="bower_components/angular-sanitize/angular-sanitize.js"></script>
     <script src="bower_components/angular-ui-router/release/angular-ui-router.js"></script>
     <script src="js/boot.js"></script>
 </body>
