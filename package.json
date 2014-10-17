@@ -1,0 +1,31 @@
+{
+  "name": "nem-wallet",
+  "version": "1.0.0",
+  "dependencies": {
+    "grunt": "0.4.x",
+    "grunt-contrib-concat": "0.x.x",
+    "grunt-ejs": "0.x.x",
+    "grunt-node-webkit-builder": "0.x.x",
+    "grunt-ts": "1.x.x"
+  },
+  "keywords": [
+    "nem",
+    "wallet",
+    "cryptocurrency"
+  ],
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "grunt build && nodewebkit app"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pocesar/node-nem-wallet.git"
+  },
+  "author": "Paulo Cesar",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pocesar/node-nem-wallet/issues"
+  },
+  "homepage": "https://github.com/pocesar/node-nem-wallet"
+}

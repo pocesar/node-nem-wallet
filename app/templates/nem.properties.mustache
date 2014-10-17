@@ -1,0 +1,54 @@
+#J> just used to identify the configuration type (i.e. Nis, Ncc)
+# Common configuration
+# short server name
+nem.shortServerName = {{shortServerName}}
+
+# In order to be able to start nem (nis and also ncc) from a removeable media,
+# the location where logs and database should be located can be configured.
+# %h - is the home directory of the user (also if the entry is missing).
+# . - is simply the working directory.
+nem.folder = {{folder}}
+
+# Specifies the maximum number of threads of the thread pool.
+nem.maxThreads = {{maxThreads}}
+
+# protocol, ports, paths
+nem.protocol = {{protocol}}
+nem.host = {{host}}
+nem.httpPort = {{httpPort}}
+nem.httpsPort = {{httpsPort}}
+nem.webContext = {{webContext}}
+nem.apiContext = {{apiContext}}
+nem.homePath = {{homePath}}
+nem.shutdownPath = /shutdown
+
+# Indicates whether or not this node should use a DOS filter
+nem.useDosFilter = {{useDosFilter}}
+
+{{#nis}}
+#[b]>>> J these set of options allow NIS headless autoboot[/b]
+# NIS configuration
+{{#bootKey}}
+nis.bootKey = {{bootKey}}
+nis.bootName = {{bootName}}
+{{/bootKey}}
+
+#[b]>>> the rest of these are advanced and probably shouldn't be changed[/b]
+# The number of regular nodes that this node should communicate with during broadcasts
+nis.nodeLimit = {{nodeLimit}}
+
+# Indicates whether or not this node should be allowed to boot if it
+# cannot receive acknowledgement from a remote peer during the boot sequence.
+nis.bootWithoutAck = {{bootWithoutAck}}
+
+# Indicates whether or not this node should send binary payloads.
+#[b]>>> we should probably switch this to default to true[/b]
+nis.useBinaryTransport = {{useBinaryTransport}}
+
+# Indicates if the network time should be used for time stamps
+nis.useNetworkTime = {{useNetworkTime}}
+
+# Maximum number of unlocked accounts.
+# Keep the value within sane
+nis.unlockedLimit = {{unlockedLimit}}
+{{/nis}}

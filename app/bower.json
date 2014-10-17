@@ -1,0 +1,29 @@
+{
+  "name": "app",
+  "version": "0.0.0",
+  "private": true,
+  "homepage": "https://github.com/pocesar/node-nem-wallet",
+  "authors": [
+    "Paulo Cesar <email@pocesar.e4ward.com>"
+  ],
+  "moduleType": [
+    "globals",
+    "node"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "jquery": "2.x",
+    "angular": "1.3.x",
+    "angular-ui-router": "0.x.x",
+    "bootbox": "4.x.x",
+    "angular-i18n": "1.x.x",
+    "font-awesome": "4.x.x"
+  }
+}
