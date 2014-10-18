@@ -77,7 +77,7 @@ module Controllers {
         public config: any = {
             scaleBeginAtZero: false,
             pointDot : false,
-            showScale: true,
+            showScale: false,
             scaleShowGridLines : true,
             datasetFill: false,
             pointDotStrokeWidth : 0,
@@ -110,9 +110,7 @@ module Controllers {
                     var btc: any = [], usd: any = [], times: any = [], limit: number = 20;
 
                     _.forEach(total['price_btc_data'], (item: any, key: number) => {
-                        if (key % 16 === 16) {
-                            times.push((new Date(item[0])).toLocaleString());
-                        }
+                        times.push((new Date(item[0])).toLocaleString());
                         btc.push(item[1]);
                     });
 
