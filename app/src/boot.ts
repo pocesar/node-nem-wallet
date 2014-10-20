@@ -54,15 +54,21 @@ function templateAsString(filename: string): Promise<string> {
 module Controllers {
 
     export class Global {
-        static $inject: string[] = ['WalletConfig', 'Log'];
+        static $inject: string[] = ['WalletConfig', 'Log', '$state'];
 
         pkg: any = require('../package.json');
+
+        shutdown() {
+            if (confirm('Do you want to close the program?')) {
+                process.exit();
+            }
+        }
 
         loaded() {
             return this.WalletConfig.loaded;
         }
 
-        constructor(private WalletConfig: Providers.WalletConfig, private Log: Services.Log) {
+        constructor(private WalletConfig: Providers.WalletConfig, private Log: Services.Log, public $state: ng.ui.IStateService) {
 
         }
     }
@@ -325,7 +331,7 @@ module Controllers {
             return this.logs;
         }
 
-        constructor(private Log: Services.Log){ Log.add('asdf','java'); Log.add('asdf 2','client'); }
+        constructor(private Log: Services.Log){  }
     }
 
     export class Config {
@@ -372,12 +378,36 @@ module Directives {
     export class ServerLog implements ng.IDirective {
         public restrict: string = 'E';
         public scope: any = {};
-        public template: string = '<ul class="server-log"><li ng-repeat="item in items | limit:3">{{ item.time | date:\'date\' }} - {{ item.msg }}</li></ul>';
+        public template: string = '<ul class="server-log"><li>{{ item.time | date:\'ss.sss\' }} - {{ item.msg }}</li></ul>';
         public link: ng.IDirectiveLinkFn;
 
         constructor(private Log: Services.Log) {
             this.link = (scope: ng.IScope) => {
-                scope['items'] = Log.logs['nis'];
+                var nis: Services.ILog = null, ncc: Services.ILog = null;
+
+                scope.$watch(() => {
+                    var last: Services.ILog;
+                    if (Log.logs['nis'] && Log.logs['nis'][0] !== nis) {
+                        nis = Log.logs['nis'][0];
+                    }
+                    if (Log.logs['ncc'] && Log.logs['ncc'][0] !== ncc) {
+                        ncc = Log.logs['ncc'][0];
+                    }
+
+                    if (nis && ncc) {
+                        if (nis.time > ncc.time) {
+                            last = nis;
+                        } else {
+                            last = ncc;
+                        }
+                    } else if (nis) {
+                        last = nis;
+                    } else if (ncc) {
+                        last = ncc;
+                    }
+
+                    scope['item'] = last;
+                });
             };
         }
 
@@ -704,6 +734,8 @@ angular
     WalletConfig: Providers.WalletConfig
     ) => {
 
+    WalletConfig.load();
+
     NemPropertiesProvider.instance('nis',{
         nis: true,
         folder: WalletConfig.folder,
@@ -793,12 +825,13 @@ angular
         controller: Controllers.NCC
     });
 }])
-.run(['Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', (
+.run(['Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', '$state', (
     Java: Services.Java,
     NemProperties: Providers.INemConfigInstance,
     WalletConfig: any,
     $timeout: ng.ITimeoutService,
-    Log: Services.Log
+    Log: Services.Log,
+    $state: ng.ui.IStateService
     ) => {
 
     Java.decide()
@@ -817,6 +850,7 @@ angular
         .then(() => {
             $timeout(() => {
                 WalletConfig.loaded = true;
+                $state.go('ncc');
             });
         }, () => {
 
@@ -827,11 +861,9 @@ angular
     });
 
     win.on('close', function() {
-        if (WalletConfig.tray) {
-            win.hide();
-        } else {
-            process.exit();
-        }
+        win.hide();
+        NemProperties.killAll();
+        gui.App.quit();
     });
 
     win.on('new-win-policy', function(frame: any, url: string, policy: any) {

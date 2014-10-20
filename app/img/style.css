@@ -46,13 +46,13 @@ a {
 .wrap {
   height: 100%; }
 
-[ui-view] {
+[ui-view]:not(.ncc) {
   position: relative;
   max-height: calc(100% - 50px);
   min-height: calc(100% - 50px);
   overflow-y: auto; }
 
-[ui-sref], [role="menuitem"] {
+[ui-sref], [role="menuitem"], [ng-click] {
   cursor: pointer; }
 
 .chart {
@@ -66,7 +66,7 @@ a {
 .ncc-iframe {
   border: 0;
   width: 100%;
-  height: calc(100% - 50px);
+  min-height: calc(100% - 50px);
   min-width: 100%; }
 
 .pad-top {

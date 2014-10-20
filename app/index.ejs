@@ -9,7 +9,7 @@
 </head>
 <body ng-app="app">
     <div ng-controller="Global as global" class="wrap">
-        <div ui-view></div>
+        <div ui-view ng-class="{'ncc': global.$state.is('ncc')}"></div>
 
         <nav class="navbar navbar-default navbar-fixed-bottom" role="navigation">
           <div class="container">
@@ -21,6 +21,7 @@
                 <li ui-sref="backup" ng-show="global.loaded()" ui-sref-active="active" class=""><a>Backup</a></li>
                 <li ui-sref="market" ui-sref-active="active" class=""><a>Market</a></li>
                 <li ui-sref="about" ui-sref-active="active" class=""><a>About</a></li>
+                <li class="pull-right"><a ng-click="global.shutdown()"><i class="fa fa-power-off"></i></a></li>
             </ul>
           </div>
         </nav>

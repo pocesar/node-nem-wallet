@@ -22,8 +22,8 @@
     "glob": "4.x.x"
   },
   "window": {
-    "width": 1250,
-    "height": 800,
+    "width": 1285,
+    "height": 768,
     "show": true,
     "title": "NEM Wallet",
     "toolbar": true,

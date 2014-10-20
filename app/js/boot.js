@@ -18,15 +18,22 @@ function templateAsString(filename) {
 var Controllers;
 (function (Controllers) {
     var Global = (function () {
-        function Global(WalletConfig, Log) {
+        function Global(WalletConfig, Log, $state) {
             this.WalletConfig = WalletConfig;
             this.Log = Log;
+            this.$state = $state;
             this.pkg = require('../package.json');
         }
+        Global.prototype.shutdown = function () {
+            if (confirm('Do you want to close the program?')) {
+                process.exit();
+            }
+        };
+
         Global.prototype.loaded = function () {
             return this.WalletConfig.loaded;
         };
-        Global.$inject = ['WalletConfig', 'Log'];
+        Global.$inject = ['WalletConfig', 'Log', '$state'];
         return Global;
     })();
     Controllers.Global = Global;
@@ -249,8 +256,6 @@ var Controllers;
                 'java': 'Java',
                 'client': 'Client'
             };
-            Log.add('asdf', 'java');
-            Log.add('asdf 2', 'client');
         }
         Log.prototype.by = function (type) {
             return this.Log.count(type);
@@ -340,9 +345,33 @@ var Directives;
             this.Log = Log;
             this.restrict = 'E';
             this.scope = {};
-            this.template = '<ul class="server-log"><li ng-repeat="item in items | limit:3">{{ item.time | date:\'date\' }} - {{ item.msg }}</li></ul>';
+            this.template = '<ul class="server-log"><li>{{ item.time | date:\'ss.sss\' }} - {{ item.msg }}</li></ul>';
             this.link = function (scope) {
-                scope['items'] = Log.logs['nis'];
+                var nis = null, ncc = null;
+
+                scope.$watch(function () {
+                    var last;
+                    if (Log.logs['nis'] && Log.logs['nis'][0] !== nis) {
+                        nis = Log.logs['nis'][0];
+                    }
+                    if (Log.logs['ncc'] && Log.logs['ncc'][0] !== ncc) {
+                        ncc = Log.logs['ncc'][0];
+                    }
+
+                    if (nis && ncc) {
+                        if (nis.time > ncc.time) {
+                            last = nis;
+                        } else {
+                            last = ncc;
+                        }
+                    } else if (nis) {
+                        last = nis;
+                    } else if (ncc) {
+                        last = ncc;
+                    }
+
+                    scope['item'] = last;
+                });
             };
         }
         ServerLog.instance = function () {
@@ -568,6 +597,15 @@ var Services;
                 if (!(url = _this.getUrl())) {
                     reject(new Error('Could not find suitable OS'));
                 }
+                var Download = require('download'), dl = new Download({ extract: true, strip: 1 }).get(url);
+
+                dl.run(function (err, files, stream) {
+                    if (err) {
+                        return reject(err);
+                    }
+
+                    resolve();
+                });
             });
         };
 
@@ -652,6 +690,8 @@ angular.module('app', [
     'angularUtils.directives.dirPagination'
 ]).controller('Global', Controllers.Global).provider('WalletConfig', Providers.WalletConfig).service('Java', Services.Java).service('Log', Services.Log).directive('serverLog', Directives.ServerLog.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config([
     '$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', function ($stateProvider, $locationProvider, $urlRouterProvider, NemPropertiesProvider, WalletConfig) {
+        WalletConfig.load();
+
         NemPropertiesProvider.instance('nis', {
             nis: true,
             folder: WalletConfig.folder,
@@ -741,7 +781,7 @@ angular.module('app', [
             controller: Controllers.NCC
         });
     }]).run([
-    'Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', function (Java, NemProperties, WalletConfig, $timeout, Log) {
+    'Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', '$state', function (Java, NemProperties, WalletConfig, $timeout, Log, $state) {
         Java.decide().then(function () {
             return NemProperties.instance('nis').run();
         }, function (err) {
@@ -755,6 +795,7 @@ angular.module('app', [
         }).then(function () {
             $timeout(function () {
                 WalletConfig.loaded = true;
+                $state.go('ncc');
             });
         }, function () {
         });
@@ -764,11 +805,9 @@ angular.module('app', [
         });
 
         win.on('close', function () {
-            if (WalletConfig.tray) {
-                win.hide();
-            } else {
-                process.exit();
-            }
+            win.hide();
+            NemProperties.killAll();
+            gui.App.quit();
         });
 
         win.on('new-win-policy', function (frame, url, policy) {
