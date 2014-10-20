@@ -53,6 +53,20 @@ function templateAsString(filename: string): Promise<string> {
 
 module Controllers {
 
+    export class Global {
+        static $inject: string[] = ['WalletConfig', 'Log'];
+
+        pkg: any = require('../package.json');
+
+        loaded() {
+            return this.WalletConfig.loaded;
+        }
+
+        constructor(private WalletConfig: Providers.WalletConfig, private Log: Services.Log) {
+
+        }
+    }
+
     export class About {
         static $inject: string[] = [];
 
@@ -70,9 +84,14 @@ module Controllers {
     }
 
     export class Market {
-        static $inject: string[] = ['$scope'];
+        static $inject: string[] = ['$scope', 'Log'];
         public usd: any;
         public btc: any;
+        public loading: boolean = true;
+        public last: any = {
+            usd: 0,
+            btc: 0
+        };
         public current: string = 'btc';
         public config: any = {
             scaleBeginAtZero: false,
@@ -83,6 +102,7 @@ module Controllers {
             pointDotStrokeWidth : 0,
             pointHitDetectionRadius : 0
         };
+
 
         fetch(): Promise<Object> {
             return new Promise<Object>((resolve: any, reject: any) => {
@@ -104,22 +124,31 @@ module Controllers {
             });
         }
 
-        constructor($scope: ng.IScope) {
-            this.fetch().then((total: any) => {
-                $scope.$apply(() => {
-                    var btc: any = [], usd: any = [], times: any = [], limit: number = 20;
 
-                    _.forEach(total['price_btc_data'], (item: any, key: number) => {
-                        times.push((new Date(item[0])).toLocaleString());
+        load() {
+            this.$scope.$eval(() => {
+                this.loading = true;
+            });
+
+            return this.fetch().then((total: any) => {
+                this.$scope.$evalAsync(() => {
+                    var btc: any = [], usd: any = [], times: any = {usd: [], btc: []}, limit: number = 20;
+
+                    _.forEach(total['price_btc_data'], (item: any) => {
+                        times.btc.push((new Date(item[0])).toLocaleString());
                         btc.push(item[1]);
                     });
 
                     _.forEach(total['price_usd_data'], (item: any) => {
+                        times.usd.push((new Date(item[0])).toLocaleString());
                         usd.push(item[1]);
                     });
 
+                    this.last.usd = _.last(usd);
+                    this.last.btc = _.last(btc);
+
                     this.usd = {
-                        labels: times,
+                        labels: times.usd,
                         datasets: [
                             {
                                 label: 'BTC',
@@ -134,7 +163,7 @@ module Controllers {
                         ]
                     };
                     this.btc = {
-                        labels: times,
+                        labels: times.btc,
                         datasets: [
                             {
                                 label: 'USD',
@@ -148,15 +177,44 @@ module Controllers {
                             }
                         ]
                     };
+
+                    this.loading = false;
+                });
+            }, (err: Error) => {
+                this.$scope.$evalAsync(() => {
+                    this.Log.add(err.message, 'client');
+                    this.loading = false;
                 });
             });
+        }
+
+        constructor(private $scope: ng.IScope, private Log: Services.Log) {
+            this.load();
         }
     }
 
     export class News {
         public FeedParser: any = require('feedparser');
         public news: any[];
-        static $inject: string[] = ['$scope','$sce'];
+        public loading: boolean = true;
+        static $inject: string[] = ['$scope','$sce','Log'];
+
+        load() {
+            this.$scope.$eval(() => {
+                this.loading = true;
+            });
+            return this.fetch().then((av: any) => {
+                this.$scope.$evalAsync(() => {
+                    this.news = av;
+                    this.loading = false;
+                });
+            }, (err: Error) => {
+                this.$scope.$evalAsync(() => {
+                    this.loading = false;
+                    this.Log.add(err.message, 'client');
+                });
+            });
+        }
 
         fetch(): Promise<any> {
             return new Promise<any>((resolve: any, reject: any) => {
@@ -166,14 +224,14 @@ module Controllers {
                     items: any[] = [];
 
                 req.on('error', (error: any) => {
-                    console.log(error);
+                    reject(error);
                 });
 
                 req.on('response', function (res: any) {
                     var stream: any = this;
 
                     if (res.statusCode !== 200) {
-                        return this.emit('error', new Error('Bad status code'));
+                        return reject(new Error('Bad status code'));
                     }
 
                     stream.pipe(feedparser);
@@ -181,6 +239,7 @@ module Controllers {
 
                 feedparser.on('error', function(error: any) {
                     // always handle errors
+                    reject(error);
                 });
 
                 feedparser.on('readable', function() {
@@ -215,24 +274,77 @@ module Controllers {
             return this.$sce.parseAsUrl(item.url);
         }
 
-        constructor($scope: ng.IScope, private $sce: ng.ISCEService) {
-            this.fetch().then((av: any) => {
-                $scope.$apply(() => {
-                    this.news = av;
-                });
-            });
+        constructor(private $scope: ng.IScope, private $sce: ng.ISCEService, private Log: Services.Log) {
+            this.load();
         }
     }
 
     export class Log {
         static $inject: string[] = ['Log'];
+        public logs: Services.ILog[] = [];
+        private _filterBy: string = 'none';
+        public labels: any = {
+            'none': 'None',
+            'ncc': 'NCC',
+            'nis': 'NIS',
+            'java': 'Java',
+            'client': 'Client'
+        };
+
+        by(type: string) {
+            return this.Log.count(type);
+        }
+
+        filterBy(type: string) {
+            switch (type) {
+                case 'none':
+                case 'ncc':
+                case 'nis':
+                case 'java':
+                case 'client':
+                    this._filterBy = type;
+                    break;
+            }
+        }
+
+        filter() {
+            this.logs.length = 0;
+
+            if (this._filterBy === 'none') {
+                _.forEach(this.Log.logs, (logs) => {
+                    _.forEach(logs, (log) => {
+                        this.logs.push(log);
+                    });
+                });
+            } else if (typeof this.Log.logs[this._filterBy] !== 'undefined') {
+                _.forEach(this.Log.logs[this._filterBy], (log) => {
+                    this.logs.push(log);
+                });
+            }
+
+            return this.logs;
+        }
+
+        constructor(private Log: Services.Log){ Log.add('asdf','java'); Log.add('asdf 2','client'); }
     }
 
     export class Config {
-        static $inject: string[] = [];
+        static $inject: string[] = ['WalletConfig'];
+        private model: any = {};
 
-        constructor(){
+        save() {
+            var config: any = this.WalletConfig;
+            _.forEach<string>(['tray','beta','testnet','folder'], (key: string) => {
+                config[key] = this.model[key];
+            });
+            config.save();
+        }
 
+        constructor(private WalletConfig: Providers.WalletConfig){
+            this.model.tray = WalletConfig.tray;
+            this.model.beta = WalletConfig.beta;
+            this.model.testnet = WalletConfig.testnet;
+            this.model.folder = WalletConfig.folder;
         }
     }
 
@@ -250,7 +362,6 @@ module Controllers {
         constructor(NEM: Providers.INemConfigInstance, $sce: ng.ISCEService) {
             var config: INEMConfig = NEM.instance('ncc').config;
             this.url = $sce.trustAsResourceUrl(config.protocol + '://' + config.host + ':' + config[config.protocol + 'Port'] + config.homePath);
-            console.log(this.url);
         }
     }
 
@@ -260,13 +371,18 @@ module Directives {
 
     export class ServerLog implements ng.IDirective {
         public restrict: string = 'E';
+        public scope: any = {};
+        public template: string = '<ul class="server-log"><li ng-repeat="item in items | limit:3">{{ item.time | date:\'date\' }} - {{ item.msg }}</li></ul>';
+        public link: ng.IDirectiveLinkFn;
 
-        constructor() {
-
+        constructor(private Log: Services.Log) {
+            this.link = (scope: ng.IScope) => {
+                scope['items'] = Log.logs['nis'];
+            };
         }
 
         static instance(){
-            return [() => new this];
+            return ['Log', (Log: Services.Log) => new this(Log)];
         }
     }
 
@@ -288,6 +404,41 @@ module Directives {
 
 module Providers {
 
+    export class WalletConfig {
+        tray: boolean = false;
+        beta: boolean = false;
+        testnet: boolean = false;
+        folder: string = path.join(process.cwd(), 'nem');
+        loaded: boolean = false;
+        updating: boolean = false;
+
+        save() {
+            localStorage.setItem('wallet', JSON.stringify(this));
+            return this;
+        }
+
+        load() {
+            var cnf: any = this;
+            try {
+                var
+                    obj: any = JSON.parse(localStorage.getItem('wallet'));
+
+                _.forEach<any>(obj, (value: any, key: string) => {
+                    if (_.has(cnf, key) && !_.isFunction(cnf[key])) {
+                        cnf[key] = value;
+                    }
+                });
+            } catch (e) {
+                localStorage.setItem('wallet', JSON.stringify(this));
+            }
+            return this;
+        }
+
+        $get() {
+            return this;
+        }
+    }
+
     export interface INemConfigInstance {
         killAll(): void;
         instance(instanceName: string): NemConfig;
@@ -297,6 +448,7 @@ module Providers {
         public Hogan: any = require('hogan.js');
         public template: any = this.Hogan.compile(templateAsString('nem.properties.mustache'));
         public config: INEMConfig = {};
+        public Log: Services.Log;
         private child: child_process.ChildProcess;
 
         render(data: INEMConfig = {}): string {
@@ -320,26 +472,38 @@ module Providers {
             }
         }
 
-        run() {
-            this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
-                cwd: path.join(this.config.folder, this.name),
-                env: process.env
-            });
+        run(): Promise<any> {
+            return new Promise((resolve: any, reject: any) => {
+                this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
+                    cwd: path.join(this.config.folder, this.name),
+                    env: process.env
+                });
 
-            this.child.stderr.on('data', (data: Buffer) => {
-                console.log('stderr', data.toString());
-            });
+                this.child.stderr.on('data', (data: Buffer) => {
+                    if (!data.length) {
+                        return;
+                    }
+                    var str: string = data.toString();
+                    this.Log.add(str, this.name);
+                    if (str.indexOf('ready to serve') > 0) {
+                        resolve(true);
+                    }
+                });
 
-            this.child.stdout.on('data', (data: Buffer) => {
-                console.log('stdout', data.toString());
-            });
+                this.child.stdout.on('data', (data: Buffer) => {
+                    this.Log.add(data.toString(), this.name);
+                });
 
-            this.child.on('close', () => {
+                this.child.on('close', () => {
+                    var msg: string = this.config.shortServerName + ' closed unexpectedly';
+                    this.Log.add(msg, this.name);
+                    reject(new Error(msg));
+                });
 
-            });
-
-            this.child.on('error', () => {
-
+                this.child.on('error', (err: Error) => {
+                    this.Log.add(err.message, this.name);
+                    reject(err);
+                });
             });
         }
 
@@ -350,22 +514,26 @@ module Providers {
 
     export class NemProperties {
         public instances: {[index: string]: NemConfig} = {};
-
-        $get(): INemConfigInstance {
-            return {
-                instance: (instance: string) => {
-                    return this.instances[instance];
-                },
-                killAll: () => {
-                    _.forEach(this.instances, (instance) => {
-                        instance.kill();
-                    });
-                }
-            };
-        }
+        public $get: any[];
 
         instance(name: string, data: INEMConfig = {}) {
             return this.instances[name] = new NemConfig(name, data);
+        }
+
+        constructor() {
+            this.$get = ['Log', (Log: Services.Log): INemConfigInstance => {
+                return {
+                    instance: (instance: string) => {
+                        this.instances[instance].Log = Log;
+                        return this.instances[instance];
+                    },
+                    killAll: () => {
+                        _.forEach(this.instances, (instance) => {
+                            instance.kill();
+                        });
+                    }
+                };
+            }];
         }
     }
 }
@@ -378,13 +546,30 @@ module Services {
     }
 
     export class Log {
+        public $inject: string[] = ['$timeout'];
         public logs: {[index: string]: ILog[]} = {};
+
+        count(type: string = 'none'): number {
+            if (type && typeof this.logs[type] !== 'undefined') {
+                return this.logs[type].length;
+            }
+            if (type === 'none') {
+                return _.reduce(this.logs, (remainder: number, logs: ILog[]): number => {
+                    return logs.length + remainder;
+                }, 0);
+            }
+            return 0;
+        }
 
         add(msg: string, group: string = 'global') {
             if (typeof this.logs[group] === 'undefined') {
                 this.logs[group] = [];
             }
-            this.logs[group].unshift({time: Date.now(), msg: msg});
+
+            this.$timeout(() => {
+                this.logs[group].unshift({time: Date.now(), msg: msg});
+            }, 0);
+
             return this;
         }
 
@@ -395,7 +580,7 @@ module Services {
             return this.logs[group].slice(start, limit);
         }
 
-        constructor() {
+        constructor(private $timeout: ng.ITimeoutService) {
 
         }
     }
@@ -434,11 +619,31 @@ module Services {
         };
         public javaBin: string;
 
+        downloadAndInstall() {
+            return new Promise((resolve: any, reject: any) => {
+                var url: string;
+                if (!(url = this.getUrl())) {
+                    reject(new Error('Could not find suitable OS'));
+                }
+                var
+                    Download = require('download'),
+                    dl = new Download({ extract: true, strip: 1 }).get(url);
+
+                dl.run((err: Error, files: string[], stream: NodeJS.ReadableStream) => {
+                    if (err) {
+                        return reject(err);
+                    }
+
+                    resolve();
+                });
+            });
+        }
+
         getUrl(): any {
             var obj: any;
 
             if (typeof (obj = Java.javaVersions[process.platform]) === 'object'){
-                if (typeof obj[process.arch] === 'string') {
+                if (typeof obj[process.arch] === 'string' && !_.isEmpty(obj[process.arch])) {
                     return obj[process.arch];
                 }
             }
@@ -477,21 +682,31 @@ module Services {
 }
 
 angular
-.module('app', ['ui.router','ngSanitize','angles'])
+.module('app', [
+    'ui.router',
+    'ngSanitize',
+    'angles',
+    'ngLocale',
+    'angularUtils.directives.dirPagination'
+])
+.controller('Global', Controllers.Global)
+.provider('WalletConfig', Providers.WalletConfig)
 .service('Java', Services.Java)
 .service('Log', Services.Log)
 .directive('serverLog', Directives.ServerLog.instance())
 .provider('NemProperties', Providers.NemProperties)
 .directive('loading', Directives.Loading.instance())
-.config(['$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', (
+.config(['$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', (
     $stateProvider: ng.ui.IStateProvider,
     $locationProvider: ng.ILocationProvider,
     $urlRouterProvider: ng.ui.IUrlRouterProvider,
-    NemPropertiesProvider: Providers.NemProperties) => {
+    NemPropertiesProvider: Providers.NemProperties,
+    WalletConfig: Providers.WalletConfig
+    ) => {
 
     NemPropertiesProvider.instance('nis',{
         nis: true,
-        folder: path.join(process.cwd(), 'nem'),
+        folder: WalletConfig.folder,
         shortServerName: 'Nis',
         maxThreads: 500,
         protocol: 'http',
@@ -507,7 +722,7 @@ angular
 
     NemPropertiesProvider.instance('ncc', {
         shortServerName: 'Ncc',
-        folder: path.join(process.cwd(), 'nem'),
+        folder: WalletConfig.folder,
         maxThreads: 50,
         protocol: 'http',
         host: '127.0.0.1',
@@ -578,20 +793,45 @@ angular
         controller: Controllers.NCC
     });
 }])
-.run(['Java', 'NemProperties', '$templateCache', (
+.run(['Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', (
     Java: Services.Java,
     NemProperties: Providers.INemConfigInstance,
-    $templateCache: ng.ITemplateCacheService
+    WalletConfig: any,
+    $timeout: ng.ITimeoutService,
+    Log: Services.Log
     ) => {
 
-    //Java.decide().then(() => {
-    //    NemProperties.instance('nis').run();
-    //});
+    Java.decide()
+        .then(() => {
+            return NemProperties.instance('nis').run();
+        }, (err: Error) => {
+            Log.add(err.message, 'java');
+            return Java.downloadAndInstall();
+        })
+        .then(() => {
+            return NemProperties.instance('ncc').run();
+        }, (err: Error) => {
+            Log.add(err.message, 'java');
+            return new Error('Failed to download Java, install manually on ' + Services.Java.javaUrl);
+        })
+        .then(() => {
+            $timeout(() => {
+                WalletConfig.loaded = true;
+            });
+        }, () => {
+
+        });
+
+    process.on('exit', () => {
+        NemProperties.killAll();
+    });
 
     win.on('close', function() {
-        //win.hide();
-        NemProperties.killAll();
-        process.exit();
+        if (WalletConfig.tray) {
+            win.hide();
+        } else {
+            process.exit();
+        }
     });
 
     win.on('new-win-policy', function(frame: any, url: string, policy: any) {
@@ -601,12 +841,6 @@ angular
 }])
 ;
 
-//clearCache();
-//loadPreferences();
-//checkPlatform();
-//prepareWindow();
-//createMenuBar();
-//addTrayBehavior();
 /*
 function clearCache(complete) {
     var cacheDirectory = gui.App.dataPath + (process.platform == "win32" ? "\\" : "/") + "Cache";

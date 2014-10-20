@@ -28,6 +28,7 @@
     "angular-sanitize": "1.x.x",
     "angular-charts": "0.x.x",
     "chartjs": "~0.2.0",
-    "angles": "*"
+    "angles": "*",
+    "angular-utils-pagination": "~0.3.1"
   }
 }

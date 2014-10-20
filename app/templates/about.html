@@ -1,0 +1,21 @@
+<div class="container pad-top">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <div class="panel-title">About</div>
+        </div>
+        <ul class="list-group">
+            <li class="list-group-item">
+                Version: {{ global.pkg.version }}
+            </li>
+            <li class="list-group-item">
+                License: {{ global.pkg.license }}
+            </li>
+            <li class="list-group-item">
+                Source: <a href="{{ global.pkg.repository.url }}" target="_blank">{{ global.pkg.repository.url }}</a>
+            </li>
+            <li class="list-group-item">
+                Report Issues: <a href="{{ global.pkg.bugs.url }}" target="_blank">{{ global.pkg.bugs.url }}</a>
+            </li>
+        </ul>
+    </div>
+</div>

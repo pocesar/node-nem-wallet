@@ -17,6 +17,20 @@ function templateAsString(filename) {
 
 var Controllers;
 (function (Controllers) {
+    var Global = (function () {
+        function Global(WalletConfig, Log) {
+            this.WalletConfig = WalletConfig;
+            this.Log = Log;
+            this.pkg = require('../package.json');
+        }
+        Global.prototype.loaded = function () {
+            return this.WalletConfig.loaded;
+        };
+        Global.$inject = ['WalletConfig', 'Log'];
+        return Global;
+    })();
+    Controllers.Global = Global;
+
     var About = (function () {
         function About() {
         }
@@ -34,65 +48,25 @@ var Controllers;
     Controllers.Backup = Backup;
 
     var Market = (function () {
-        function Market($scope) {
-            var _this = this;
+        function Market($scope, Log) {
+            this.$scope = $scope;
+            this.Log = Log;
+            this.loading = true;
+            this.last = {
+                usd: 0,
+                btc: 0
+            };
             this.current = 'btc';
             this.config = {
                 scaleBeginAtZero: false,
                 pointDot: false,
-                showScale: true,
+                showScale: false,
                 scaleShowGridLines: true,
                 datasetFill: false,
                 pointDotStrokeWidth: 0,
                 pointHitDetectionRadius: 0
             };
-            this.fetch().then(function (total) {
-                $scope.$apply(function () {
-                    var btc = [], usd = [], times = [], limit = 20;
-
-                    _.forEach(total['price_btc_data'], function (item, key) {
-                        if (key % 16 === 16) {
-                            times.push((new Date(item[0])).toLocaleString());
-                        }
-                        btc.push(item[1]);
-                    });
-
-                    _.forEach(total['price_usd_data'], function (item) {
-                        usd.push(item[1]);
-                    });
-
-                    _this.usd = {
-                        labels: times,
-                        datasets: [
-                            {
-                                label: 'BTC',
-                                fillColor: 'rgba(220,220,220,0.2)',
-                                strokeColor: 'rgba(220,220,220,1)',
-                                pointColor: 'rgba(220,220,220,1)',
-                                pointStrokeColor: '#fff',
-                                pointHighlightFill: '#fff',
-                                pointHighlightStroke: 'rgba(220,220,220,1)',
-                                data: btc
-                            }
-                        ]
-                    };
-                    _this.btc = {
-                        labels: times,
-                        datasets: [
-                            {
-                                label: 'USD',
-                                fillColor: 'rgba(151,187,205,0.2)',
-                                strokeColor: 'rgba(151,187,205,1)',
-                                pointColor: 'rgba(151,187,205,1)',
-                                pointStrokeColor: '#fff',
-                                pointHighlightFill: '#fff',
-                                pointHighlightStroke: 'rgba(151,187,205,1)',
-                                data: usd
-                            }
-                        ]
-                    };
-                });
-            });
+            this.load();
         }
         Market.prototype.fetch = function () {
             return new Promise(function (resolve, reject) {
@@ -111,42 +85,123 @@ var Controllers;
                 });
             });
         };
-        Market.$inject = ['$scope'];
+
+        Market.prototype.load = function () {
+            var _this = this;
+            this.$scope.$eval(function () {
+                _this.loading = true;
+            });
+
+            return this.fetch().then(function (total) {
+                _this.$scope.$evalAsync(function () {
+                    var btc = [], usd = [], times = { usd: [], btc: [] }, limit = 20;
+
+                    _.forEach(total['price_btc_data'], function (item) {
+                        times.btc.push((new Date(item[0])).toLocaleString());
+                        btc.push(item[1]);
+                    });
+
+                    _.forEach(total['price_usd_data'], function (item) {
+                        times.usd.push((new Date(item[0])).toLocaleString());
+                        usd.push(item[1]);
+                    });
+
+                    _this.last.usd = _.last(usd);
+                    _this.last.btc = _.last(btc);
+
+                    _this.usd = {
+                        labels: times.usd,
+                        datasets: [
+                            {
+                                label: 'BTC',
+                                fillColor: 'rgba(220,220,220,0.2)',
+                                strokeColor: 'rgba(220,220,220,1)',
+                                pointColor: 'rgba(220,220,220,1)',
+                                pointStrokeColor: '#fff',
+                                pointHighlightFill: '#fff',
+                                pointHighlightStroke: 'rgba(220,220,220,1)',
+                                data: btc
+                            }
+                        ]
+                    };
+                    _this.btc = {
+                        labels: times.btc,
+                        datasets: [
+                            {
+                                label: 'USD',
+                                fillColor: 'rgba(151,187,205,0.2)',
+                                strokeColor: 'rgba(151,187,205,1)',
+                                pointColor: 'rgba(151,187,205,1)',
+                                pointStrokeColor: '#fff',
+                                pointHighlightFill: '#fff',
+                                pointHighlightStroke: 'rgba(151,187,205,1)',
+                                data: usd
+                            }
+                        ]
+                    };
+
+                    _this.loading = false;
+                });
+            }, function (err) {
+                _this.$scope.$evalAsync(function () {
+                    _this.Log.add(err.message, 'client');
+                    _this.loading = false;
+                });
+            });
+        };
+        Market.$inject = ['$scope', 'Log'];
         return Market;
     })();
     Controllers.Market = Market;
 
     var News = (function () {
-        function News($scope, $sce) {
-            var _this = this;
+        function News($scope, $sce, Log) {
+            this.$scope = $scope;
             this.$sce = $sce;
+            this.Log = Log;
             this.FeedParser = require('feedparser');
-            this.fetch().then(function (av) {
-                $scope.$apply(function () {
+            this.loading = true;
+            this.load();
+        }
+        News.prototype.load = function () {
+            var _this = this;
+            this.$scope.$eval(function () {
+                _this.loading = true;
+            });
+            return this.fetch().then(function (av) {
+                _this.$scope.$evalAsync(function () {
                     _this.news = av;
+                    _this.loading = false;
+                });
+            }, function (err) {
+                _this.$scope.$evalAsync(function () {
+                    _this.loading = false;
+                    _this.Log.add(err.message, 'client');
                 });
             });
-        }
+        };
+
         News.prototype.fetch = function () {
             var _this = this;
             return new Promise(function (resolve, reject) {
                 var req = request('https://forum.nemcoin.com/index.php?type=rss;action=.xml'), feedparser = new _this.FeedParser(), items = [];
 
                 req.on('error', function (error) {
-                    console.log(error);
+                    reject(error);
                 });
 
                 req.on('response', function (res) {
                     var stream = this;
 
                     if (res.statusCode !== 200) {
-                        return this.emit('error', new Error('Bad status code'));
+                        return reject(new Error('Bad status code'));
                     }
 
                     stream.pipe(feedparser);
                 });
 
                 feedparser.on('error', function (error) {
+                    reject(error);
                 });
 
                 feedparser.on('readable', function () {
@@ -177,23 +232,83 @@ var Controllers;
         News.prototype.getUrl = function (item) {
             return this.$sce.parseAsUrl(item.url);
         };
-        News.$inject = ['$scope', '$sce'];
+        News.$inject = ['$scope', '$sce', 'Log'];
         return News;
     })();
     Controllers.News = News;
 
     var Log = (function () {
-        function Log() {
+        function Log(Log) {
+            this.Log = Log;
+            this.logs = [];
+            this._filterBy = 'none';
+            this.labels = {
+                'none': 'None',
+                'ncc': 'NCC',
+                'nis': 'NIS',
+                'java': 'Java',
+                'client': 'Client'
+            };
+            Log.add('asdf', 'java');
+            Log.add('asdf 2', 'client');
         }
+        Log.prototype.by = function (type) {
+            return this.Log.count(type);
+        };
+
+        Log.prototype.filterBy = function (type) {
+            switch (type) {
+                case 'none':
+                case 'ncc':
+                case 'nis':
+                case 'java':
+                case 'client':
+                    this._filterBy = type;
+                    break;
+            }
+        };
+
+        Log.prototype.filter = function () {
+            var _this = this;
+            this.logs.length = 0;
+
+            if (this._filterBy === 'none') {
+                _.forEach(this.Log.logs, function (logs) {
+                    _.forEach(logs, function (log) {
+                        _this.logs.push(log);
+                    });
+                });
+            } else if (typeof this.Log.logs[this._filterBy] !== 'undefined') {
+                _.forEach(this.Log.logs[this._filterBy], function (log) {
+                    _this.logs.push(log);
+                });
+            }
+
+            return this.logs;
+        };
         Log.$inject = ['Log'];
         return Log;
     })();
     Controllers.Log = Log;
 
     var Config = (function () {
-        function Config() {
+        function Config(WalletConfig) {
+            this.WalletConfig = WalletConfig;
+            this.model = {};
+            this.model.tray = WalletConfig.tray;
+            this.model.beta = WalletConfig.beta;
+            this.model.testnet = WalletConfig.testnet;
+            this.model.folder = WalletConfig.folder;
         }
-        Config.$inject = [];
+        Config.prototype.save = function () {
+            var _this = this;
+            var config = this.WalletConfig;
+            _.forEach(['tray', 'beta', 'testnet', 'folder'], function (key) {
+                config[key] = _this.model[key];
+            });
+            config.save();
+        };
+        Config.$inject = ['WalletConfig'];
         return Config;
     })();
     Controllers.Config = Config;
@@ -211,7 +326,6 @@ var Controllers;
         function NCC(NEM, $sce) {
             var config = NEM.instance('ncc').config;
             this.url = $sce.trustAsResourceUrl(config.protocol + '://' + config.host + ':' + config[config.protocol + 'Port'] + config.homePath);
-            console.log(this.url);
         }
         NCC.$inject = ['NemProperties', '$sce'];
         return NCC;
@@ -222,13 +336,19 @@ var Controllers;
 var Directives;
 (function (Directives) {
     var ServerLog = (function () {
-        function ServerLog() {
+        function ServerLog(Log) {
+            this.Log = Log;
             this.restrict = 'E';
+            this.scope = {};
+            this.template = '<ul class="server-log"><li ng-repeat="item in items | limit:3">{{ item.time | date:\'date\' }} - {{ item.msg }}</li></ul>';
+            this.link = function (scope) {
+                scope['items'] = Log.logs['nis'];
+            };
         }
         ServerLog.instance = function () {
             var _this = this;
-            return [function () {
-                    return new _this;
+            return ['Log', function (Log) {
+                    return new _this(Log);
                 }];
         };
         return ServerLog;
@@ -253,6 +373,43 @@ var Directives;
 
 var Providers;
 (function (Providers) {
+    var WalletConfig = (function () {
+        function WalletConfig() {
+            this.tray = false;
+            this.beta = false;
+            this.testnet = false;
+            this.folder = path.join(process.cwd(), 'nem');
+            this.loaded = false;
+            this.updating = false;
+        }
+        WalletConfig.prototype.save = function () {
+            localStorage.setItem('wallet', JSON.stringify(this));
+            return this;
+        };
+
+        WalletConfig.prototype.load = function () {
+            var cnf = this;
+            try  {
+                var obj = JSON.parse(localStorage.getItem('wallet'));
+
+                _.forEach(obj, function (value, key) {
+                    if (_.has(cnf, key) && !_.isFunction(cnf[key])) {
+                        cnf[key] = value;
+                    }
+                });
+            } catch (e) {
+                localStorage.setItem('wallet', JSON.stringify(this));
+            }
+            return this;
+        };
+
+        WalletConfig.prototype.$get = function () {
+            return this;
+        };
+        return WalletConfig;
+    })();
+    Providers.WalletConfig = WalletConfig;
+
     var NemConfig = (function () {
         function NemConfig(name, data) {
             if (typeof data === "undefined") { data = null; }
@@ -286,23 +443,38 @@ var Providers;
         };
 
         NemConfig.prototype.run = function () {
-            this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
-                cwd: path.join(this.config.folder, this.name),
-                env: process.env
-            });
+            var _this = this;
+            return new Promise(function (resolve, reject) {
+                _this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
+                    cwd: path.join(_this.config.folder, _this.name),
+                    env: process.env
+                });
 
-            this.child.stderr.on('data', function (data) {
-                console.log('stderr', data.toString());
-            });
+                _this.child.stderr.on('data', function (data) {
+                    if (!data.length) {
+                        return;
+                    }
+                    var str = data.toString();
+                    _this.Log.add(str, _this.name);
+                    if (str.indexOf('ready to serve') > 0) {
+                        resolve(true);
+                    }
+                });
 
-            this.child.stdout.on('data', function (data) {
-                console.log('stdout', data.toString());
-            });
+                _this.child.stdout.on('data', function (data) {
+                    _this.Log.add(data.toString(), _this.name);
+                });
 
-            this.child.on('close', function () {
-            });
+                _this.child.on('close', function () {
+                    var msg = _this.config.shortServerName + ' closed unexpectedly';
+                    _this.Log.add(msg, _this.name);
+                    reject(new Error(msg));
+                });
 
-            this.child.on('error', function () {
+                _this.child.on('error', function (err) {
+                    _this.Log.add(err.message, _this.name);
+                    reject(err);
+                });
             });
         };
         return NemConfig;
@@ -311,22 +483,23 @@ var Providers;
 
     var NemProperties = (function () {
         function NemProperties() {
-            this.instances = {};
-        }
-        NemProperties.prototype.$get = function () {
             var _this = this;
-            return {
-                instance: function (instance) {
-                    return _this.instances[instance];
-                },
-                killAll: function () {
-                    _.forEach(_this.instances, function (instance) {
-                        instance.kill();
-                    });
-                }
-            };
-        };
-
+            this.instances = {};
+            this.$get = [
+                'Log', function (Log) {
+                    return {
+                        instance: function (instance) {
+                            _this.instances[instance].Log = Log;
+                            return _this.instances[instance];
+                        },
+                        killAll: function () {
+                            _.forEach(_this.instances, function (instance) {
+                                instance.kill();
+                            });
+                        }
+                    };
+                }];
+        }
         NemProperties.prototype.instance = function (name, data) {
             if (typeof data === "undefined") { data = {}; }
             return this.instances[name] = new NemConfig(name, data);
@@ -339,15 +512,35 @@ var Providers;
 var Services;
 (function (Services) {
     var Log = (function () {
-        function Log() {
+        function Log($timeout) {
+            this.$timeout = $timeout;
+            this.$inject = ['$timeout'];
             this.logs = {};
         }
+        Log.prototype.count = function (type) {
+            if (typeof type === "undefined") { type = 'none'; }
+            if (type && typeof this.logs[type] !== 'undefined') {
+                return this.logs[type].length;
+            }
+            if (type === 'none') {
+                return _.reduce(this.logs, function (remainder, logs) {
+                    return logs.length + remainder;
+                }, 0);
+            }
+            return 0;
+        };
+
         Log.prototype.add = function (msg, group) {
+            var _this = this;
             if (typeof group === "undefined") { group = 'global'; }
             if (typeof this.logs[group] === 'undefined') {
                 this.logs[group] = [];
             }
-            this.logs[group].unshift({ time: Date.now(), msg: msg });
+
+            this.$timeout(function () {
+                _this.logs[group].unshift({ time: Date.now(), msg: msg });
+            }, 0);
+
             return this;
         };
 
@@ -368,11 +561,21 @@ var Services;
         function Java(Log) {
             this.Log = Log;
         }
+        Java.prototype.downloadAndInstall = function () {
+            var _this = this;
+            return new Promise(function (resolve, reject) {
+                var url;
+                if (!(url = _this.getUrl())) {
+                    reject(new Error('Could not find suitable OS'));
+                }
+            });
+        };
+
         Java.prototype.getUrl = function () {
             var obj;
 
             if (typeof (obj = Java.javaVersions[process.platform]) === 'object') {
-                if (typeof obj[process.arch] === 'string') {
+                if (typeof obj[process.arch] === 'string' && !_.isEmpty(obj[process.arch])) {
                     return obj[process.arch];
                 }
             }
@@ -441,11 +644,17 @@ var Services;
     Services.Java = Java;
 })(Services || (Services = {}));
 
-angular.module('app', ['ui.router', 'ngSanitize', 'angles']).service('Java', Services.Java).service('Log', Services.Log).directive('serverLog', Directives.ServerLog.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config([
-    '$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', function ($stateProvider, $locationProvider, $urlRouterProvider, NemPropertiesProvider) {
+angular.module('app', [
+    'ui.router',
+    'ngSanitize',
+    'angles',
+    'ngLocale',
+    'angularUtils.directives.dirPagination'
+]).controller('Global', Controllers.Global).provider('WalletConfig', Providers.WalletConfig).service('Java', Services.Java).service('Log', Services.Log).directive('serverLog', Directives.ServerLog.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config([
+    '$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', function ($stateProvider, $locationProvider, $urlRouterProvider, NemPropertiesProvider, WalletConfig) {
         NemPropertiesProvider.instance('nis', {
             nis: true,
-            folder: path.join(process.cwd(), 'nem'),
+            folder: WalletConfig.folder,
             shortServerName: 'Nis',
             maxThreads: 500,
             protocol: 'http',
@@ -461,7 +670,7 @@ angular.module('app', ['ui.router', 'ngSanitize', 'angles']).service('Java', Ser
 
         NemPropertiesProvider.instance('ncc', {
             shortServerName: 'Ncc',
-            folder: path.join(process.cwd(), 'nem'),
+            folder: WalletConfig.folder,
             maxThreads: 50,
             protocol: 'http',
             host: '127.0.0.1',
@@ -532,10 +741,34 @@ angular.module('app', ['ui.router', 'ngSanitize', 'angles']).service('Java', Ser
             controller: Controllers.NCC
         });
     }]).run([
-    'Java', 'NemProperties', '$templateCache', function (Java, NemProperties, $templateCache) {
-        win.on('close', function () {
+    'Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', function (Java, NemProperties, WalletConfig, $timeout, Log) {
+        Java.decide().then(function () {
+            return NemProperties.instance('nis').run();
+        }, function (err) {
+            Log.add(err.message, 'java');
+            return Java.downloadAndInstall();
+        }).then(function () {
+            return NemProperties.instance('ncc').run();
+        }, function (err) {
+            Log.add(err.message, 'java');
+            return new Error('Failed to download Java, install manually on ' + Services.Java.javaUrl);
+        }).then(function () {
+            $timeout(function () {
+                WalletConfig.loaded = true;
+            });
+        }, function () {
+        });
+
+        process.on('exit', function () {
             NemProperties.killAll();
-            process.exit();
+        });
+
+        win.on('close', function () {
+            if (WalletConfig.tray) {
+                win.hide();
+            } else {
+                process.exit();
+            }
         });
 
         win.on('new-win-policy', function (frame, url, policy) {

@@ -1,0 +1,236 @@
+@font-face {
+    font-family: "Source Sans Pro";
+    font-style: normal;
+    font-weight: 400;
+    src: local("Source Sans Pro"), local("Source_Sans_Pro"), url("source-sans-pro/SourceSansPro-Regular.ttf") format("ttf");
+}
+
+@font-face {
+    font-family: "Source Sans Pro Italic";
+    font-style: italic;
+    font-weight: 400;
+    src: local("Source Sans Pro Italic"), local("Source_Sans_Pro_Italic"), url("source-sans-pro/SourceSansPro-Italic.ttf") format("ttf");
+}
+
+@font-face {
+    font-family: "Source Sans Pro Bold";
+    font-style: normal;
+    font-weight: 700;
+    src: local("Source Sans Pro Bold"), local("Source_Sans_Pro_Bold"), url("source-sans-pro/SourceSansPro-Bold.ttf") format("ttf");
+}
+
+//nem colors
+$orange: rgba(225, 169, 43, 1);
+$green: rgba(65, 206, 124, 1);
+$gray: rgba(142, 142, 142, 1);
+$darkgray: rgba(68, 68, 68, 1);
+
+$color_stack_approx: rgba(142, 142, 142, 1);
+$color_emerald_approx: rgba(65, 206, 124, 1);
+$color_tundora_approx: rgba(68, 68, 68, 1);
+$white: rgba(255, 255, 255, 1);
+$black_9: rgba(0, 0, 0, 0.09);
+$alabaster: rgba(250, 250, 250, 1);
+$color_storm_dust_approx: rgba(102, 102, 102, 1);
+$color_alto_approx: rgba(221, 221, 221, 1);
+$wild_sand: rgba(244, 244, 244, 1);
+$color_boston_blue_approx: rgba(60, 141, 188, 1);
+$color_astral_approx: rgba(54, 127, 169, 1);
+$black_125: rgba(0, 0, 0, 0.125);
+$font: 'Source Sans Pro';
+
+//@extend-elements
+//original selectors
+//html, body
+%extend_1 {
+    overflow: hidden;
+    position: relative;
+    height: 100%;
+}
+
+a, input, textarea {
+    &, &:active, &:focus {
+        outline: none;
+    }
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background: #8E8E8E;
+    background-size: cover;
+    min-height: 100% !important;
+    font-family: $font;
+    font-size: 14px;
+    @extend %extend_1;
+}
+
+a {
+    color: $orange;
+    &:focus {
+        color: lighten($orange, 10%);
+    }
+    &:hover {
+        color: lighten($orange, 20%);
+    }
+}
+
+.invisible {
+    visibility: hidden;
+}
+
+.wrap {
+    height: 100%;
+}
+
+[ui-view] {
+    position: relative;
+    max-height: calc(100% - 50px);
+    min-height: calc(100% - 50px);
+    overflow-y: auto;
+}
+
+[ui-sref], [role="menuitem"] {
+    cursor: pointer;
+}
+
+.chart {
+    position: relative;
+    height: calc(550px);
+    canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+}
+
+.ncc-iframe {
+    border: 0;
+    width: 100%;
+    height: calc(100% - 50px);
+    min-width: 100%;
+}
+
+.pad-top {
+    padding-top: 10px;
+}
+
+iframe {
+}
+
+.pagination {
+    margin: 0;
+}
+
+.nem-logo {
+    margin: 50px auto;
+    display: block;
+    max-width: 300px;
+}
+
+html {
+    @extend %extend_1;
+}
+
+.loading_indicator_container {
+    height: 64px;
+    width: 64px;
+    margin: 0 auto;
+}
+
+.loading_indicator {
+    text-align: center;
+    border: solid $color_tundora_approx 6px;
+    background-color: $white;
+    border-radius: 12px;
+    display: block;
+    opacity: 0.55;
+    img {
+        display: block;
+        height: 32px;
+        width: 32px;
+        margin: 10px;
+    }
+}
+
+.server_output_container {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    max-width: 800px;
+    margin: auto;
+    color: $white;
+}
+
+td {
+    font-size: 14px;
+}
+
+h2 {
+    margin-top: 0;
+}
+
+p {
+    margin-bottom: 0;
+}
+
+.btn {
+    font-family: $font;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    box-shadow: inset 0 -1px 0 0 $black_9;
+    &.btn-default {
+        background-color: $alabaster;
+        background-image: none;
+        border-color: $color_alto_approx;
+        border-bottom-color: $color_alto_approx;
+        &:hover, &.hover {
+            background-color: darken($green, 15%);
+            background-image: none;
+            color: #fff;
+        }
+        &:focus {
+            background-color: darken($green, 20%);
+            background-image: none;
+            color: #fff;
+        }
+    }
+    &.btn-primary {
+        background-color: $green;
+        border-color: transparent;
+        background-image: none;
+        &:hover, &.hover {
+            background-color: darken($green, 15%);
+            background-image: none;
+            color: #fff;
+        }
+        &:focus {
+            background-color: darken($green, 20%);
+            background-image: none;
+            color: #fff;
+        }
+    }
+    &:active {
+        box-shadow: inset 0 3px 5px $black_125;
+        outline: none !important;
+    }
+    &:focus {
+        outline: none !important;
+    }
+}
+
+.form-control {
+    &:focus {
+        box-shadow: inset 0 1px 1px transparentize($darkgray, 0.075), 0 0 8px transparentize($green, 0.75);
+    }
+}
+.news-listing * {
+    font-size: 13px;
+}
+.modal-backdrop.in {
+    opacity: 0.35 !important;
+}
+.bootbox .modal-footer {
+    margin-top: 0 !important;
+}

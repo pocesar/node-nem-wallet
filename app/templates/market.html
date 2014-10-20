@@ -1,18 +1,30 @@
 <div class="container pad-top">
-    <div class="chart row clearfix">
-        <div class="col-lg-16">
-            <div ng-class="{'invisible': market.current=='btc'}">
-                <canvas linechart options="market.config" data="market.usd" height="150" responsive="true"></canvas>
-            </div>
-            <div ng-class="{'invisible': market.current=='usd'}">
-                <canvas linechart options="market.config" data="market.btc" height="150" responsive="true"></canvas>
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <div class="panel-title">Market NEMStake/{{ market.current == 'btc' ? 'BTC' : 'USD' }} - Last {{ market.last[market.current] }}</div>
+        </div>
+        <div class="panel-body">
+            <div class="chart row clearfix">
+                <div class="col-lg-16">
+                    <div ng-class="{'invisible': market.current=='btc'}">
+                        <canvas linechart options="market.config" data="market.usd" height="130" responsive="true"></canvas>
+                    </div>
+                    <div ng-class="{'invisible': market.current=='usd'}">
+                        <canvas linechart options="market.config" data="market.btc" height="130" responsive="true"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="row clearfix">
-        <div class="col-lg-16">
-            <a class="btn btn-primary" ng-class="{ 'active': market.current=='usd'}" ng-click="market.current='usd'">USD</a>
-            <a class="btn btn-primary" ng-class="{ 'active': market.current=='btc'}" ng-click="market.current='btc'">BTC</a>
+        <div class="panel-footer">
+            <div class="row clearfix">
+                <div class="col-xs-10">
+                    <a class="btn btn-primary" ng-class="{ 'active': market.current=='usd'}" ng-click="market.current='usd'">USD</a>
+                    <a class="btn btn-primary" ng-class="{ 'active': market.current=='btc'}" ng-click="market.current='btc'">BTC</a>
+                </div>
+                <div class="col-xs-2">
+                    <a class="pull-right" target="_blank" href="http://coinmarketcap.com/assets/nemstake/#charts">by Coinmarketcap.com</a>
+                </div>
+            </div>
         </div>
     </div>
 </div>

@@ -5,10 +5,12 @@
     "grunt": "0.4.x",
     "grunt-contrib-concat": "0.x.x",
     "grunt-ejs": "0.x.x",
-    "grunt-node-webkit-builder": "0.x.x"
+    "grunt-node-webkit-builder": "0.x.x",
+    "node-sass":"1.x"
   },
   "peerDependencies": {
-    "typescript": "1.x"
+    "typescript": "1.x",
+    "bower": "1.x"
   },
   "keywords": [
     "nem",
@@ -17,10 +19,12 @@
   ],
   "devDependencies": {},
   "scripts": {
+    "postinstall": "cd app && npm install && bower install",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "npm run build && nodewebkit app",
+    "sass": "node-sass app/img/style.scss app/img/style.css",
     "ts": "tsc --module commonjs --noImplicitAny --outDir app/js --removeComments --sourcemap --target ES5 reference.d.ts",
-    "build": "npm run ts && grunt build"
+    "build": "npm run sass && npm run ts && grunt build"
   },
   "repository": {
     "type": "git",

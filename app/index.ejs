@@ -3,32 +3,39 @@
 <meta charset="utf-8">
 <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.css" />
 <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap-theme.css" />
+<link rel="stylesheet" href="bower_components/font-awesome/css/font-awesome.css" />
 <link rel="stylesheet" href="img/style.css" />
 <title>NEM Wallet v<%= version %></title>
 </head>
 <body ng-app="app">
-    <div ui-view></div>
+    <div ng-controller="Global as global" class="wrap">
+        <div ui-view></div>
 
-    <nav class="navbar navbar-default navbar-fixed-bottom" role="navigation">
-      <div class="container">
-        <ul class="nav navbar-nav">
-            <li ui-sref="ncc" ui-sref-active="active" class=""><a>NCC</a></li>
-            <li ui-sref="log" ui-sref-active="active" class=""><a>Log</a></li>
-            <li ui-sref="config" ui-sref-active="active" class=""><a>Config</a></li>
-            <li ui-sref="news" ui-sref-active="active" class=""><a>News</a></li>
-            <li ui-sref="backup" ui-sref-active="active" class=""><a>Backup</a></li>
-            <li ui-sref="market" ui-sref-active="active" class=""><a>Market</a></li>
-            <li ui-sref="about" ui-sref-active="active" class=""><a>About</a></li>
-        </ul>
-      </div>
-    </nav>
+        <nav class="navbar navbar-default navbar-fixed-bottom" role="navigation">
+          <div class="container">
+            <ul class="nav navbar-nav">
+                <li ui-sref="ncc" ng-show="global.loaded()" ui-sref-active="active" class=""><a>NCC</a></li>
+                <li ui-sref="log" ui-sref-active="active" class=""><a>Log&nbsp;&nbsp;<span ng-bind="global.Log.count()" class="badge"></span></a></li>
+                <li ui-sref="config" ui-sref-active="active" class=""><a>Config</a></li>
+                <li ui-sref="news" ui-sref-active="active" class=""><a>News</a></li>
+                <li ui-sref="backup" ng-show="global.loaded()" ui-sref-active="active" class=""><a>Backup</a></li>
+                <li ui-sref="market" ui-sref-active="active" class=""><a>Market</a></li>
+                <li ui-sref="about" ui-sref-active="active" class=""><a>About</a></li>
+            </ul>
+          </div>
+        </nav>
+    </div>
 
     <script src="bower_components/jquery/dist/jquery.js"></script>
     <script src="bower_components/chartjs/Chart.js"></script>
     <script src="bower_components/angular/angular.js"></script>
     <script src="bower_components/angular-sanitize/angular-sanitize.js"></script>
     <script src="bower_components/angular-ui-router/release/angular-ui-router.js"></script>
+    <script src="bower_components/angular-utils-pagination/dirPagination.js"></script>
     <script src="bower_components/angles/angles.js"></script>
+    <script src="bower_components/bootstrap/dist/js/bootstrap.js"></script>
+    <script id="lang"></script>
+    <script src="js/lang.js"></script>
     <script src="js/boot.js"></script>
 </body>
 </html>
