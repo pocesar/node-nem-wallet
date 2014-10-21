@@ -54,7 +54,7 @@ function templateAsString(filename: string): Promise<string> {
 module Controllers {
 
     export class Global {
-        static $inject: string[] = ['WalletConfig', 'Log', '$state'];
+        static $inject: string[] = ['WalletConfig', 'Log', '$state', 'NEM'];
 
         pkg: any = require('../package.json');
 
@@ -68,7 +68,7 @@ module Controllers {
             return this.WalletConfig.loaded;
         }
 
-        constructor(private WalletConfig: Providers.WalletConfig, private Log: Services.Log, public $state: ng.ui.IStateService) {
+        constructor(private WalletConfig: Providers.WalletConfig, private Log: Services.Log, public $state: ng.ui.IStateService, public NEM: any) {
 
         }
     }
@@ -77,7 +77,6 @@ module Controllers {
         static $inject: string[] = [];
 
         constructor() {
-
         }
     }
 
@@ -328,6 +327,10 @@ module Controllers {
                 });
             }
 
+            this.logs.sort((a: Services.ILog, b: Services.ILog): number => {
+                return a.time - b.time;
+            });
+
             return this.logs;
         }
 
@@ -378,7 +381,7 @@ module Directives {
     export class ServerLog implements ng.IDirective {
         public restrict: string = 'E';
         public scope: any = {};
-        public template: string = '<ul class="server-log"><li>{{ item.time | date:\'ss.sss\' }} - {{ item.msg }}</li></ul>';
+        public template: string = '<div class="well">{{ item.msg }}</div>';
         public link: ng.IDirectiveLinkFn;
 
         constructor(private Log: Services.Log) {
@@ -417,7 +420,7 @@ module Directives {
     }
 
     export class Loading implements ng.IDirective {
-        public template: string = '<div class="loading_indicator_container"><div class="loading_indicator"><img src="img/loading-bars.svg" /></div></div>';
+        public template: string = '<div class="loading_indicator_container"><div class="loading_indicator"><div class="loading"></div></div></div>';
         public restrict: string = 'E';
 
         constructor() {
@@ -479,14 +482,20 @@ module Providers {
         public template: any = this.Hogan.compile(templateAsString('nem.properties.mustache'));
         public config: INEMConfig = {};
         public Log: Services.Log;
+        public NEM: any;
+        public version: string = '';
         private child: child_process.ChildProcess;
+
+        path(more: string[] = []) {
+            return path.join.apply(path, [this.config.folder, this.name].concat(more));
+        }
 
         render(data: INEMConfig = {}): string {
             return this.template.render(_.defaults(this.config, data));
         }
 
         saveToFile(): Promise<boolean> {
-            return fs.writeFileAsync(path.join(this.config.folder, 'config.properties'), this.render());
+            return fs.writeFileAsync(this.path(['config.properties']), this.render());
         }
 
         set(config?: INEMConfig): NemConfig {
@@ -502,37 +511,65 @@ module Providers {
             }
         }
 
+        download(): Promise<any> {
+            return new Promise((resolve: any, reject: any) => {
+                fs.statAsync(this.path()).then(() =>{
+                    resolve();
+                }, () => {
+                    var
+                        Download = require('download'),
+                        dl = new Download({
+                            extract: true,
+                            dest: this.config.folder
+                        }).get('http://bob.nem.ninja/nis-ncc-' + this.NEM.version + '.tgz');
+
+                    dl.run(() => {
+                        this.Log.add('NEM downloaded', 'client');
+                        resolve();
+                    });
+                });
+            });
+        }
+
         run(): Promise<any> {
             return new Promise((resolve: any, reject: any) => {
-                this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
-                    cwd: path.join(this.config.folder, this.name),
-                    env: process.env
-                });
+                this.download().then(() => {
+                    this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
+                        cwd: path.join(this.config.folder, this.name),
+                        env: process.env
+                    });
 
-                this.child.stderr.on('data', (data: Buffer) => {
-                    if (!data.length) {
-                        return;
-                    }
-                    var str: string = data.toString();
-                    this.Log.add(str, this.name);
-                    if (str.indexOf('ready to serve') > 0) {
-                        resolve(true);
-                    }
-                });
+                    this.child.stderr.on('data', (data: Buffer) => {
+                        if (!data.length) {
+                            return;
+                        }
+                        var str: string = data.toString();
+                        this.Log.add(str, this.name);
+                        if (!this.version){
+                            var matches: string[];
+                            if ((matches = str.match(/version <([^\>]+?)>/)) && matches[1]) {
+                                this.version = matches[1];
+                            }
+                        }
+                        if (str.indexOf('ready to serve') > 0) {
+                            resolve(true);
+                        }
+                    });
 
-                this.child.stdout.on('data', (data: Buffer) => {
-                    this.Log.add(data.toString(), this.name);
-                });
+                    this.child.stdout.on('data', (data: Buffer) => {
+                        this.Log.add(data.toString(), this.name);
+                    });
 
-                this.child.on('close', () => {
-                    var msg: string = this.config.shortServerName + ' closed unexpectedly';
-                    this.Log.add(msg, this.name);
-                    reject(new Error(msg));
-                });
+                    this.child.on('close', () => {
+                        var msg: string = this.config.shortServerName + ' closed unexpectedly';
+                        this.Log.add(msg, this.name);
+                        reject(new Error(msg));
+                    });
 
-                this.child.on('error', (err: Error) => {
-                    this.Log.add(err.message, this.name);
-                    reject(err);
+                    this.child.on('error', (err: Error) => {
+                        this.Log.add(err.message, this.name);
+                        reject(err);
+                    });
                 });
             });
         }
@@ -551,10 +588,11 @@ module Providers {
         }
 
         constructor() {
-            this.$get = ['Log', (Log: Services.Log): INemConfigInstance => {
+            this.$get = ['Log', 'NEM', (Log: Services.Log, NEM: any): INemConfigInstance => {
                 return {
                     instance: (instance: string) => {
                         this.instances[instance].Log = Log;
+                        this.instances[instance].NEM = NEM;
                         return this.instances[instance];
                     },
                     killAll: () => {
@@ -657,9 +695,11 @@ module Services {
                 }
                 var
                     Download = require('download'),
-                    dl = new Download({ extract: true, strip: 1 }).get(url);
+                    dl = new Download({  }).get(url);
 
                 dl.run((err: Error, files: string[], stream: NodeJS.ReadableStream) => {
+                    console.log(err, files);
+
                     if (err) {
                         return reject(err);
                     }
@@ -717,8 +757,12 @@ angular
     'ngSanitize',
     'angles',
     'ngLocale',
-    'angularUtils.directives.dirPagination'
+    'angularUtils.directives.dirPagination',
+    'ct.ui.router.extras'
 ])
+.value('NEM', {
+    version: '0.0.0'
+})
 .controller('Global', Controllers.Global)
 .provider('WalletConfig', Providers.WalletConfig)
 .service('Java', Services.Java)
@@ -819,29 +863,40 @@ angular
     });
 
     $stateProvider.state('ncc', {
-        url: '/ncc',
-        template: '<iframe ng-src="{{ncc.url}}" frameBorder="0" class="ncc-iframe" nwdisable></iframe>',
-        controllerAs: 'ncc',
-        controller: Controllers.NCC
+        sticky: true,
+        views: {
+            'wallet': {
+                template: '<iframe ng-src="{{ncc.url}}" frameBorder="0" class="ncc-iframe" nwdisable></iframe>',
+                controllerAs: 'ncc',
+                controller: Controllers.NCC
+            }
+        }
     });
 }])
-.run(['Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', '$state', (
+.run(['Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', '$state', 'NEM', (
     Java: Services.Java,
     NemProperties: Providers.INemConfigInstance,
     WalletConfig: any,
     $timeout: ng.ITimeoutService,
     Log: Services.Log,
-    $state: ng.ui.IStateService
+    $state: ng.ui.IStateService,
+    NEM: any
     ) => {
+
+    request.get('http://bob.nem.ninja/version.txt', {}, (err: Error, res: any, version: string) => {
+        NEM.version = version.match(/(\d\.\d\.\d)/)[1];
+    });
 
     Java.decide()
         .then(() => {
+            Log.add('Version is greater or equal to 1.8', 'java');
             return NemProperties.instance('nis').run();
         }, (err: Error) => {
             Log.add(err.message, 'java');
             return Java.downloadAndInstall();
         })
         .then(() => {
+            Log.add('Java downloaded and installed', 'java');
             return NemProperties.instance('ncc').run();
         }, (err: Error) => {
             Log.add(err.message, 'java');

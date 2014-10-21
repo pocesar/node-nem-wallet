@@ -27,8 +27,13 @@
     "font-awesome": "4.x.x",
     "angular-sanitize": "1.x.x",
     "angular-charts": "0.x.x",
-    "chartjs": "~0.2.0",
-    "angles": "*",
-    "angular-utils-pagination": "~0.3.1"
+    "chartjs": "0.x",
+    "angles": "git://github.com/lgsilver/angles.git#master",
+    "angular-utils-pagination": "0.x",
+    "ui-router-extras": "0.x"
+  },
+  "resolutions": {
+    "angular": "1.3.x",
+    "chartjs": "1.0.1-beta.2"
   }
 }

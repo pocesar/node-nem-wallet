@@ -3,21 +3,13 @@
         <div class="panel-heading">
             <div class="panel-title">Logs {{ log.labels[log._filterBy] }}</div>
         </div>
-        <ul class="list-group clearfix">
-            <li class="list-group-item clearfix" dir-paginate="data in log.filter() | itemsPerPage: 10">
-                <div class="row">
-                    <div class="col-sm-1">{{ data.time | date:'short' }}</div>
-                    <div class="col-sm-11"><pre><code>{{ data.msg }}</code></pre></div>
-                </div>
-            </li>
-        </ul>
-        <div class="panel-footer clearfix">
+        <div class="panel-body clearfix">
             <div class="row">
                 <div class="col-sm-10">
                     <dir-pagination-controls template-url="bower_components/angular-utils-pagination/dirPagination.tpl.html"></dir-pagination-controls>
                 </div>
                 <div class="col-sm-1">
-                    <div class="dropup pull-right">
+                    <div class="dropdown pull-right">
                         <button class="btn btn-default dropdown-toggle" type="button" id="filterMenu" data-toggle="dropdown">
                             Filter <span class="caret"></span>
                         </button>
@@ -35,5 +27,13 @@
                 </div>
             </div>
         </div>
+        <ul class="list-group clearfix">
+            <li class="list-group-item clearfix" dir-paginate="data in log.filter() | itemsPerPage: 10">
+                <div class="row">
+                    <div class="col-sm-1">{{ data.time | date:'short' }}</div>
+                    <div class="col-sm-11"><pre><code>{{ data.msg }}</code></pre></div>
+                </div>
+            </li>
+        </ul>
     </div>
 </div>

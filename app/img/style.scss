@@ -90,6 +90,15 @@ a {
     overflow-y: auto;
 }
 
+[ui-view="wallet"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+}
+
 [ui-sref], [role="menuitem"], [ng-click] {
     cursor: pointer;
 }
@@ -135,6 +144,7 @@ html {
 .loading_indicator_container {
     height: 64px;
     width: 64px;
+    display: block;
     margin: 0 auto;
 }
 
@@ -145,12 +155,14 @@ html {
     border-radius: 12px;
     display: block;
     opacity: 0.55;
-    img {
-        display: block;
-        height: 32px;
-        width: 32px;
-        margin: 10px;
-    }
+}
+
+.loading {
+    background: url(loading-bars.svg) no-repeat;
+    display: block;
+    height: 32px;
+    width: 32px;
+    margin: 10px;
 }
 
 .server_output_container {

@@ -18,10 +18,11 @@ function templateAsString(filename) {
 var Controllers;
 (function (Controllers) {
     var Global = (function () {
-        function Global(WalletConfig, Log, $state) {
+        function Global(WalletConfig, Log, $state, NEM) {
             this.WalletConfig = WalletConfig;
             this.Log = Log;
             this.$state = $state;
+            this.NEM = NEM;
             this.pkg = require('../package.json');
         }
         Global.prototype.shutdown = function () {
@@ -33,7 +34,7 @@ var Controllers;
         Global.prototype.loaded = function () {
             return this.WalletConfig.loaded;
         };
-        Global.$inject = ['WalletConfig', 'Log', '$state'];
+        Global.$inject = ['WalletConfig', 'Log', '$state', 'NEM'];
         return Global;
     })();
     Controllers.Global = Global;
@@ -289,6 +290,10 @@ var Controllers;
                 });
             }
 
+            this.logs.sort(function (a, b) {
+                return a.time - b.time;
+            });
+
             return this.logs;
         };
         Log.$inject = ['Log'];
@@ -345,7 +350,7 @@ var Directives;
             this.Log = Log;
             this.restrict = 'E';
             this.scope = {};
-            this.template = '<ul class="server-log"><li>{{ item.time | date:\'ss.sss\' }} - {{ item.msg }}</li></ul>';
+            this.template = '<div class="well">{{ item.msg }}</div>';
             this.link = function (scope) {
                 var nis = null, ncc = null;
 
@@ -386,7 +391,7 @@ var Directives;
 
     var Loading = (function () {
         function Loading() {
-            this.template = '<div class="loading_indicator_container"><div class="loading_indicator"><img src="img/loading-bars.svg" /></div></div>';
+            this.template = '<div class="loading_indicator_container"><div class="loading_indicator"><div class="loading"></div></div></div>';
             this.restrict = 'E';
         }
         Loading.instance = function () {
@@ -446,15 +451,21 @@ var Providers;
             this.Hogan = require('hogan.js');
             this.template = this.Hogan.compile(templateAsString('nem.properties.mustache'));
             this.config = {};
+            this.version = '';
             this.set(data);
         }
+        NemConfig.prototype.path = function (more) {
+            if (typeof more === "undefined") { more = []; }
+            return path.join.apply(path, [this.config.folder, this.name].concat(more));
+        };
+
         NemConfig.prototype.render = function (data) {
             if (typeof data === "undefined") { data = {}; }
             return this.template.render(_.defaults(this.config, data));
         };
 
         NemConfig.prototype.saveToFile = function () {
-            return fs.writeFileAsync(path.join(this.config.folder, 'config.properties'), this.render());
+            return fs.writeFileAsync(this.path(['config.properties']), this.render());
         };
 
         NemConfig.prototype.set = function (config) {
@@ -471,38 +482,65 @@ var Providers;
             }
         };
 
+        NemConfig.prototype.download = function () {
+            var _this = this;
+            return new Promise(function (resolve, reject) {
+                fs.statAsync(_this.path()).then(function () {
+                    resolve();
+                }, function () {
+                    var Download = require('download'), dl = new Download({
+                        extract: true,
+                        dest: _this.config.folder
+                    }).get('http://bob.nem.ninja/nis-ncc-' + _this.NEM.version + '.tgz');
+
+                    dl.run(function () {
+                        _this.Log.add('NEM downloaded', 'client');
+                        resolve();
+                    });
+                });
+            });
+        };
+
         NemConfig.prototype.run = function () {
             var _this = this;
             return new Promise(function (resolve, reject) {
-                _this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
-                    cwd: path.join(_this.config.folder, _this.name),
-                    env: process.env
-                });
+                _this.download().then(function () {
+                    _this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
+                        cwd: path.join(_this.config.folder, _this.name),
+                        env: process.env
+                    });
 
-                _this.child.stderr.on('data', function (data) {
-                    if (!data.length) {
-                        return;
-                    }
-                    var str = data.toString();
-                    _this.Log.add(str, _this.name);
-                    if (str.indexOf('ready to serve') > 0) {
-                        resolve(true);
-                    }
-                });
+                    _this.child.stderr.on('data', function (data) {
+                        if (!data.length) {
+                            return;
+                        }
+                        var str = data.toString();
+                        _this.Log.add(str, _this.name);
+                        if (!_this.version) {
+                            var matches;
+                            if ((matches = str.match(/version <([^\>]+?)>/)) && matches[1]) {
+                                _this.version = matches[1];
+                            }
+                        }
+                        if (str.indexOf('ready to serve') > 0) {
+                            resolve(true);
+                        }
+                    });
 
-                _this.child.stdout.on('data', function (data) {
-                    _this.Log.add(data.toString(), _this.name);
-                });
+                    _this.child.stdout.on('data', function (data) {
+                        _this.Log.add(data.toString(), _this.name);
+                    });
 
-                _this.child.on('close', function () {
-                    var msg = _this.config.shortServerName + ' closed unexpectedly';
-                    _this.Log.add(msg, _this.name);
-                    reject(new Error(msg));
-                });
+                    _this.child.on('close', function () {
+                        var msg = _this.config.shortServerName + ' closed unexpectedly';
+                        _this.Log.add(msg, _this.name);
+                        reject(new Error(msg));
+                    });
 
-                _this.child.on('error', function (err) {
-                    _this.Log.add(err.message, _this.name);
-                    reject(err);
+                    _this.child.on('error', function (err) {
+                        _this.Log.add(err.message, _this.name);
+                        reject(err);
+                    });
                 });
             });
         };
@@ -515,10 +553,11 @@ var Providers;
             var _this = this;
             this.instances = {};
             this.$get = [
-                'Log', function (Log) {
+                'Log', 'NEM', function (Log, NEM) {
                     return {
                         instance: function (instance) {
                             _this.instances[instance].Log = Log;
+                            _this.instances[instance].NEM = NEM;
                             return _this.instances[instance];
                         },
                         killAll: function () {
@@ -597,9 +636,11 @@ var Services;
                 if (!(url = _this.getUrl())) {
                     reject(new Error('Could not find suitable OS'));
                 }
-                var Download = require('download'), dl = new Download({ extract: true, strip: 1 }).get(url);
+                var Download = require('download'), dl = new Download({}).get(url);
 
                 dl.run(function (err, files, stream) {
+                    console.log(err, files);
+
                     if (err) {
                         return reject(err);
                     }
@@ -687,8 +728,11 @@ angular.module('app', [
     'ngSanitize',
     'angles',
     'ngLocale',
-    'angularUtils.directives.dirPagination'
-]).controller('Global', Controllers.Global).provider('WalletConfig', Providers.WalletConfig).service('Java', Services.Java).service('Log', Services.Log).directive('serverLog', Directives.ServerLog.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config([
+    'angularUtils.directives.dirPagination',
+    'ct.ui.router.extras'
+]).value('NEM', {
+    version: '0.0.0'
+}).controller('Global', Controllers.Global).provider('WalletConfig', Providers.WalletConfig).service('Java', Services.Java).service('Log', Services.Log).directive('serverLog', Directives.ServerLog.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config([
     '$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', function ($stateProvider, $locationProvider, $urlRouterProvider, NemPropertiesProvider, WalletConfig) {
         WalletConfig.load();
 
@@ -775,19 +819,29 @@ angular.module('app', [
         });
 
         $stateProvider.state('ncc', {
-            url: '/ncc',
-            template: '<iframe ng-src="{{ncc.url}}" frameBorder="0" class="ncc-iframe" nwdisable></iframe>',
-            controllerAs: 'ncc',
-            controller: Controllers.NCC
+            sticky: true,
+            views: {
+                'wallet': {
+                    template: '<iframe ng-src="{{ncc.url}}" frameBorder="0" class="ncc-iframe" nwdisable></iframe>',
+                    controllerAs: 'ncc',
+                    controller: Controllers.NCC
+                }
+            }
         });
     }]).run([
-    'Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', '$state', function (Java, NemProperties, WalletConfig, $timeout, Log, $state) {
+    'Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', '$state', 'NEM', function (Java, NemProperties, WalletConfig, $timeout, Log, $state, NEM) {
+        request.get('http://bob.nem.ninja/version.txt', {}, function (err, res, version) {
+            NEM.version = version.match(/(\d\.\d\.\d)/)[1];
+        });
+
         Java.decide().then(function () {
+            Log.add('Version is greater or equal to 1.8', 'java');
             return NemProperties.instance('nis').run();
         }, function (err) {
             Log.add(err.message, 'java');
             return Java.downloadAndInstall();
         }).then(function () {
+            Log.add('Java downloaded and installed', 'java');
             return NemProperties.instance('ncc').run();
         }, function (err) {
             Log.add(err.message, 'java');

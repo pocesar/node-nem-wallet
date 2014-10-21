@@ -9,7 +9,8 @@
 </head>
 <body ng-app="app">
     <div ng-controller="Global as global" class="wrap">
-        <div ui-view ng-class="{'ncc': global.$state.is('ncc')}"></div>
+        <div ui-view></div>
+        <div ui-view="wallet" ng-show="global.$state.includes('ncc')" class="ncc"></div>
 
         <nav class="navbar navbar-default navbar-fixed-bottom" role="navigation">
           <div class="container">
@@ -34,6 +35,7 @@
     <script src="bower_components/angular-ui-router/release/angular-ui-router.js"></script>
     <script src="bower_components/angular-utils-pagination/dirPagination.js"></script>
     <script src="bower_components/angles/angles.js"></script>
+    <script src="bower_components/ui-router-extras/release/ct-ui-router-extras.js"></script>
     <script src="bower_components/bootstrap/dist/js/bootstrap.js"></script>
     <script id="lang"></script>
     <script src="js/lang.js"></script>
