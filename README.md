@@ -1,7 +1,7 @@
 NEM Wallet
 ===============
 
-Hassle-free NEM Wallet for Linux, MacOS and Windows
+Hassle-free portable NEM Wallet for Linux, MacOS and Windows
 
 ## Dev Install
 
@@ -12,8 +12,7 @@ npm install
 grunt
 ```
 
-## Generate executables
-
+<!-- ## Generate executables -->
 
 
 ## Credits

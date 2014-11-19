@@ -1,15 +1,19 @@
-'use strict';
-
 import Promise = require('bluebird');
 import path = require('path');
 import child_process = require('child_process');
 import request = require('request');
 import gui = require('nw.gui');
 import _ = require('lodash');
+import tar = require('tar');
+import semver = require('semver');
+
+module Boot {
+
+'use strict';
 
 var
     win: gui.Window = gui.Window.get(),
-    semver: any = require('semver'),
+    cwd: string = path.dirname(process.execPath),
     fs: any = Promise.promisifyAll(require('fs'));
 
 interface IJavaVersion {
@@ -270,7 +274,6 @@ module Controllers {
                             _items[item.title] = {
                                 title: item.title,
                                 url: item.permalink,
-                                summary: item.summary,
                                 date: new Date(item.date)
                             };
                         }
@@ -735,6 +738,7 @@ module Services {
                 if (!(url = this.getUrl())) {
                     reject(new Error('Could not find suitable OS'));
                 }
+
                 var
                     Download = require('download'),
                     dl = new Download({  }).get(url);
@@ -769,6 +773,10 @@ module Services {
 
         decide(): Promise<any> {
             return new Promise<any>((resolve: any, reject: any) => {
+                request.get('http://java.com/applet/JreCurrentVersion2.txt', (version) => {
+                    var revision: string = version.split("_")[1];
+
+                });
                 var child: child_process.ChildProcess = child_process.spawn('java', ['-version'], {env: process.env});
 
                 child.on('error', (err: Error) => {
@@ -802,7 +810,7 @@ angular
     'ngAnimate',
     'ui.router',
     'ngSanitize',
-    'angles',
+    'tc.chartjs',
     'ngLocale',
     'angularUtils.directives.dirPagination',
     'ct.ui.router.extras',
@@ -925,17 +933,19 @@ angular
     });
 }])
 .run(['Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', '$state', 'NEM', (
-    Java: Services.Java,
-    NemProperties: Providers.INemConfigInstance,
-    WalletConfig: any,
-    $timeout: ng.ITimeoutService,
-    Log: Services.Log,
-    $state: ng.ui.IStateService,
-    NEM: any
+        Java: Services.Java,
+        NemProperties: Providers.INemConfigInstance,
+        WalletConfig: any,
+        $timeout: ng.ITimeoutService,
+        Log: Services.Log,
+        $state: ng.ui.IStateService,
+        NEM: any
     ) => {
 
     request.get('http://bob.nem.ninja/version.txt', {}, (err: Error, res: any, version: string) => {
         NEM.version = version.match(/(\d\.\d\.\d)/)[1];
+
+        Log.add('Latest NEM version is ' + NEM.version, 'client');
 
         Java
         .decide()
@@ -990,6 +1000,8 @@ angular
     });
 }])
 ;
+
+}
 
 /*
 function clearCache(complete) {
