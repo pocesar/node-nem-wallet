@@ -23,7 +23,8 @@
                     </div>
                 </div>
                 <div class="col-sm-1">
-                    <div class="pull-right btn btn-primary" ng-click="log.export()">Export</div>
+                    <div class="pull-right btn btn-primary" ng-click="log.openSaveAs()">Export</div>
+                    <input style="display:none;" id="fileDialog" nwsaveas type="file" value="log.txt" />
                 </div>
             </div>
         </div>

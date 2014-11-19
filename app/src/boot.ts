@@ -74,9 +74,14 @@ module Controllers {
     }
 
     export class About {
-        static $inject: string[] = [];
+        static $inject: string[] = ['NemProperties'];
+        public versions: any;
 
-        constructor() {
+        constructor(NP: Providers.INemConfigInstance) {
+            this.versions = {
+                nis: NP.instance('nis').version,
+                ncc: NP.instance('ncc').version
+            };
         }
     }
 
@@ -285,9 +290,10 @@ module Controllers {
     }
 
     export class Log {
-        static $inject: string[] = ['Log'];
+        static $inject: string[] = ['Log', 'growl'];
         public logs: Services.ILog[] = [];
         private _filterBy: string = 'none';
+        private saveas: string;
         public labels: any = {
             'none': 'None',
             'ncc': 'NCC',
@@ -312,6 +318,24 @@ module Controllers {
             }
         }
 
+        openSaveAs() {
+            var dialog: JQuery = $('#fileDialog');
+            dialog.one('change', () => {
+                var diag: any = dialog[0];
+                if (diag.files && diag.files[0] && diag.files[0].path) {
+                    var logs: string[] = _.map(this.logs, (m: Services.ILog) => {
+                        return (new Date(m.time).toLocaleString()) + ': ' + m.msg;
+                    });
+                    fs.writeFileAsync(diag.files[0].path, logs.join('\n')).then(() => {
+                        this.growl.success(this.Log.add('File saved to ' + diag.files[0].path, 'client'), {ttl: 3000});
+                    });
+                }
+                diag.files.length = 0;
+            });
+            dialog.click();
+        }
+
+
         filter() {
             this.logs.length = 0;
 
@@ -334,7 +358,7 @@ module Controllers {
             return this.logs;
         }
 
-        constructor(private Log: Services.Log){  }
+        constructor(private Log: Services.Log, private growl: any){  }
     }
 
     export class Config {
@@ -511,65 +535,83 @@ module Providers {
             }
         }
 
+        ensurePath(): Promise<any> {
+            return new Promise<any>((resolve: any, reject: any) => {
+                var mkdirp: any = require('mkdirp');
+
+                mkdirp(this.config.folder, function (err: Error) {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve();
+                });
+            });
+        }
+
         download(): Promise<any> {
             return new Promise((resolve: any, reject: any) => {
-                fs.statAsync(this.path()).then(() =>{
-                    resolve();
-                }, () => {
-                    var
-                        Download = require('download'),
-                        dl = new Download({
-                            extract: true,
-                            dest: this.config.folder
-                        }).get('http://bob.nem.ninja/nis-ncc-' + this.NEM.version + '.tgz');
-
-                    dl.run(() => {
-                        this.Log.add('NEM downloaded', 'client');
+                this.ensurePath().then(() => {
+                    fs.statAsync(this.path()).then((stat: any) =>{
                         resolve();
+                    }, () => {
+                        this.Log.add('NIS not found, downloading...', 'client');
+
+                        var
+                            Download = require('download'),
+                            dl = new Download({
+                                extract: true,
+                                dest: this.config.folder
+                            }).get('http://bob.nem.ninja/nis-ncc-' + this.NEM.version + '.tgz');
+
+                        dl.run((err: any) => {
+                            console.log(arguments);
+                            if (err) {
+                                return reject(err);
+                            }
+                            this.Log.add('NEM downloaded', 'client');
+                            resolve();
+                        });
                     });
-                });
+                }, reject);
             });
         }
 
         run(): Promise<any> {
             return new Promise((resolve: any, reject: any) => {
-                this.download().then(() => {
-                    this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
-                        cwd: path.join(this.config.folder, this.name),
-                        env: process.env
-                    });
+                this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
+                    cwd: path.join(this.config.folder, this.name),
+                    env: process.env
+                });
 
-                    this.child.stderr.on('data', (data: Buffer) => {
-                        if (!data.length) {
-                            return;
+                this.child.stderr.on('data', (data: Buffer) => {
+                    if (!data.length) {
+                        return;
+                    }
+                    var str: string = data.toString();
+                    this.Log.add(str, this.name);
+                    if (!this.version){
+                        var matches: string[];
+                        if ((matches = str.match(/version <([^\>]+?)>/)) && matches[1]) {
+                            this.version = matches[1];
                         }
-                        var str: string = data.toString();
-                        this.Log.add(str, this.name);
-                        if (!this.version){
-                            var matches: string[];
-                            if ((matches = str.match(/version <([^\>]+?)>/)) && matches[1]) {
-                                this.version = matches[1];
-                            }
-                        }
-                        if (str.indexOf('ready to serve') > 0) {
-                            resolve(true);
-                        }
-                    });
+                    }
+                    if (str.indexOf('ready to serve') > 0) {
+                        resolve(this.version);
+                    }
+                });
 
-                    this.child.stdout.on('data', (data: Buffer) => {
-                        this.Log.add(data.toString(), this.name);
-                    });
+                this.child.stdout.on('data', (data: Buffer) => {
+                    this.Log.add(data.toString(), this.name);
+                });
 
-                    this.child.on('close', () => {
-                        var msg: string = this.config.shortServerName + ' closed unexpectedly';
-                        this.Log.add(msg, this.name);
-                        reject(new Error(msg));
-                    });
+                this.child.on('close', (errCode: number) => {
+                    var msg: string = this.config.shortServerName + ' closed unexpectedly';
+                    this.Log.add(msg, this.name);
+                });
 
-                    this.child.on('error', (err: Error) => {
-                        this.Log.add(err.message, this.name);
-                        reject(err);
-                    });
+                this.child.on('error', (err: Error) => {
+                    this.Log.add(err.message, this.name);
+                    reject(err);
                 });
             });
         }
@@ -629,7 +671,7 @@ module Services {
             return 0;
         }
 
-        add(msg: string, group: string = 'global') {
+        add(msg: string, group: string = 'global'): string {
             if (typeof this.logs[group] === 'undefined') {
                 this.logs[group] = [];
             }
@@ -638,7 +680,7 @@ module Services {
                 this.logs[group].unshift({time: Date.now(), msg: msg});
             }, 0);
 
-            return this;
+            return msg;
         }
 
         limit(limit: number = 20, start: number = 0, group: string = 'global') {
@@ -687,8 +729,8 @@ module Services {
         };
         public javaBin: string;
 
-        downloadAndInstall() {
-            return new Promise((resolve: any, reject: any) => {
+        downloadAndInstall(): Promise<any> {
+            return new Promise<any>((resolve: any, reject: any) => {
                 var url: string;
                 if (!(url = this.getUrl())) {
                     reject(new Error('Could not find suitable OS'));
@@ -698,13 +740,17 @@ module Services {
                     dl = new Download({  }).get(url);
 
                 dl.run((err: Error, files: string[], stream: NodeJS.ReadableStream) => {
-                    console.log(err, files);
-
                     if (err) {
                         return reject(err);
                     }
+                    var _path: string = path.join(process.cwd(), 'jre');
 
-                    resolve();
+                    child_process.execFile(files[0], ['/s', 'WEB_JAVA=0', 'INSTALLDIR=' + _path, '/L java.log'], {
+                        cwd: process.cwd(),
+                        env: process.env
+                    }, () => {
+                        resolve(_path);
+                    });
                 });
             });
         }
@@ -753,12 +799,14 @@ module Services {
 
 angular
 .module('app', [
+    'ngAnimate',
     'ui.router',
     'ngSanitize',
     'angles',
     'ngLocale',
     'angularUtils.directives.dirPagination',
-    'ct.ui.router.extras'
+    'ct.ui.router.extras',
+    'angular-growl'
 ])
 .value('NEM', {
     version: '0.0.0'
@@ -770,13 +818,16 @@ angular
 .directive('serverLog', Directives.ServerLog.instance())
 .provider('NemProperties', Providers.NemProperties)
 .directive('loading', Directives.Loading.instance())
-.config(['$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', (
+.config(['$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', 'growlProvider', (
     $stateProvider: ng.ui.IStateProvider,
     $locationProvider: ng.ILocationProvider,
     $urlRouterProvider: ng.ui.IUrlRouterProvider,
     NemPropertiesProvider: Providers.NemProperties,
-    WalletConfig: Providers.WalletConfig
+    WalletConfig: Providers.WalletConfig,
+    growlProvider: any
     ) => {
+
+    growlProvider.globalPosition('bottom-right');
 
     WalletConfig.load();
 
@@ -885,31 +936,43 @@ angular
 
     request.get('http://bob.nem.ninja/version.txt', {}, (err: Error, res: any, version: string) => {
         NEM.version = version.match(/(\d\.\d\.\d)/)[1];
-    });
 
-    Java.decide()
-        .then(() => {
-            Log.add('Version is greater or equal to 1.8', 'java');
-            return NemProperties.instance('nis').run();
-        }, (err: Error) => {
+        Java
+        .decide()
+        .catch((err: Error) => {
             Log.add(err.message, 'java');
-            return Java.downloadAndInstall();
+
+            return Java.downloadAndInstall().then((value: any) => {
+                Log.add('Java downloaded and installed', 'java');
+                return true;
+            }, (err: Error) => {
+                Log.add(err.message, 'java');
+                return new Error('Failed to download Java, install manually on ' + Services.Java.javaUrl);
+            });
         })
-        .then(() => {
-            Log.add('Java downloaded and installed', 'java');
-            return NemProperties.instance('ncc').run();
-        }, (err: Error) => {
+        .catch((err: Error) => {
             Log.add(err.message, 'java');
-            return new Error('Failed to download Java, install manually on ' + Services.Java.javaUrl);
+        })
+        .then(() => NemProperties.instance('nis').run())
+        .then(() => {
+            return NemProperties.instance('ncc').run();
+        }, (err: any) => {
+            Log.add(err.message, 'nis');
+            if (err.code === 'ENOENT') {
+                return NemProperties.instance('nis').download().then(() => {
+                    return NemProperties.instance('nis').run();
+                }).then(() => {
+                    return NemProperties.instance('ncc').run();
+                });
+            }
         })
         .then(() => {
             $timeout(() => {
                 WalletConfig.loaded = true;
                 $state.go('ncc');
             });
-        }, () => {
-
         });
+    });
 
     process.on('exit', () => {
         NemProperties.killAll();

@@ -10,16 +10,18 @@
   "dependencies": {
     "bluebird": "2.x.x",
     "download": "3.x",
-    "request": "2.x.x",
     "feedparser": "0.x.x",
     "github": "0.x",
+    "glob": "4.x.x",
     "hogan.js": "3.x.x",
     "lodash": "2.x",
+    "mkdirp": "0.x.x",
     "ncp": "0.x.x",
+    "request": "2.x.x",
     "rimraf": "2.x.x",
     "semver": "4.x",
     "temp": "0.x.x",
-    "glob": "4.x.x"
+    "tar": "1.x"
   },
   "window": {
     "width": 1285,

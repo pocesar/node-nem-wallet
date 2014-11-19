@@ -40,9 +40,13 @@ var Controllers;
     Controllers.Global = Global;
 
     var About = (function () {
-        function About() {
+        function About(NP) {
+            this.versions = {
+                nis: NP.instance('nis').version,
+                ncc: NP.instance('ncc').version
+            };
         }
-        About.$inject = [];
+        About.$inject = ['NemProperties'];
         return About;
     })();
     Controllers.About = About;
@@ -246,8 +250,9 @@ var Controllers;
     Controllers.News = News;
 
     var Log = (function () {
-        function Log(Log) {
+        function Log(Log, growl) {
             this.Log = Log;
+            this.growl = growl;
             this.logs = [];
             this._filterBy = 'none';
             this.labels = {
@@ -274,6 +279,24 @@ var Controllers;
             }
         };
 
+        Log.prototype.openSaveAs = function () {
+            var _this = this;
+            var dialog = $('#fileDialog');
+            dialog.one('change', function () {
+                var diag = dialog[0];
+                if (diag.files && diag.files[0] && diag.files[0].path) {
+                    var logs = _.map(_this.logs, function (m) {
+                        return (new Date(m.time).toLocaleString()) + ': ' + m.msg;
+                    });
+                    fs.writeFileAsync(diag.files[0].path, logs.join('\n')).then(function () {
+                        _this.growl.success(_this.Log.add('File saved to ' + diag.files[0].path, 'client'), { ttl: 3000 });
+                    });
+                }
+                diag.files.length = 0;
+            });
+            dialog.click();
+        };
+
         Log.prototype.filter = function () {
             var _this = this;
             this.logs.length = 0;
@@ -296,7 +319,7 @@ var Controllers;
 
             return this.logs;
         };
-        Log.$inject = ['Log'];
+        Log.$inject = ['Log', 'growl'];
         return Log;
     })();
     Controllers.Log = Log;
@@ -482,65 +505,84 @@ var Providers;
             }
         };
 
+        NemConfig.prototype.ensurePath = function () {
+            var _this = this;
+            return new Promise(function (resolve, reject) {
+                var mkdirp = require('mkdirp');
+
+                mkdirp(_this.config.folder, function (err) {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve();
+                });
+            });
+        };
+
         NemConfig.prototype.download = function () {
             var _this = this;
             return new Promise(function (resolve, reject) {
-                fs.statAsync(_this.path()).then(function () {
-                    resolve();
-                }, function () {
-                    var Download = require('download'), dl = new Download({
-                        extract: true,
-                        dest: _this.config.folder
-                    }).get('http://bob.nem.ninja/nis-ncc-' + _this.NEM.version + '.tgz');
-
-                    dl.run(function () {
-                        _this.Log.add('NEM downloaded', 'client');
+                _this.ensurePath().then(function () {
+                    fs.statAsync(_this.path()).then(function (stat) {
                         resolve();
+                    }, function () {
+                        _this.Log.add('NIS not found, downloading...', 'client');
+
+                        var Download = require('download'), dl = new Download({
+                            extract: true,
+                            dest: _this.config.folder
+                        }).get('http://bob.nem.ninja/nis-ncc-' + _this.NEM.version + '.tgz');
+
+                        dl.run(function (err) {
+                            console.log(arguments);
+                            if (err) {
+                                return reject(err);
+                            }
+                            _this.Log.add('NEM downloaded', 'client');
+                            resolve();
+                        });
                     });
-                });
+                }, reject);
             });
         };
 
         NemConfig.prototype.run = function () {
             var _this = this;
             return new Promise(function (resolve, reject) {
-                _this.download().then(function () {
-                    _this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
-                        cwd: path.join(_this.config.folder, _this.name),
-                        env: process.env
-                    });
+                _this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
+                    cwd: path.join(_this.config.folder, _this.name),
+                    env: process.env
+                });
 
-                    _this.child.stderr.on('data', function (data) {
-                        if (!data.length) {
-                            return;
+                _this.child.stderr.on('data', function (data) {
+                    if (!data.length) {
+                        return;
+                    }
+                    var str = data.toString();
+                    _this.Log.add(str, _this.name);
+                    if (!_this.version) {
+                        var matches;
+                        if ((matches = str.match(/version <([^\>]+?)>/)) && matches[1]) {
+                            _this.version = matches[1];
                         }
-                        var str = data.toString();
-                        _this.Log.add(str, _this.name);
-                        if (!_this.version) {
-                            var matches;
-                            if ((matches = str.match(/version <([^\>]+?)>/)) && matches[1]) {
-                                _this.version = matches[1];
-                            }
-                        }
-                        if (str.indexOf('ready to serve') > 0) {
-                            resolve(true);
-                        }
-                    });
+                    }
+                    if (str.indexOf('ready to serve') > 0) {
+                        resolve(_this.version);
+                    }
+                });
 
-                    _this.child.stdout.on('data', function (data) {
-                        _this.Log.add(data.toString(), _this.name);
-                    });
+                _this.child.stdout.on('data', function (data) {
+                    _this.Log.add(data.toString(), _this.name);
+                });
 
-                    _this.child.on('close', function () {
-                        var msg = _this.config.shortServerName + ' closed unexpectedly';
-                        _this.Log.add(msg, _this.name);
-                        reject(new Error(msg));
-                    });
+                _this.child.on('close', function (errCode) {
+                    var msg = _this.config.shortServerName + ' closed unexpectedly';
+                    _this.Log.add(msg, _this.name);
+                });
 
-                    _this.child.on('error', function (err) {
-                        _this.Log.add(err.message, _this.name);
-                        reject(err);
-                    });
+                _this.child.on('error', function (err) {
+                    _this.Log.add(err.message, _this.name);
+                    reject(err);
                 });
             });
         };
@@ -609,7 +651,7 @@ var Services;
                 _this.logs[group].unshift({ time: Date.now(), msg: msg });
             }, 0);
 
-            return this;
+            return msg;
         };
 
         Log.prototype.limit = function (limit, start, group) {
@@ -639,13 +681,17 @@ var Services;
                 var Download = require('download'), dl = new Download({}).get(url);
 
                 dl.run(function (err, files, stream) {
-                    console.log(err, files);
-
                     if (err) {
                         return reject(err);
                     }
+                    var _path = path.join(process.cwd(), 'jre');
 
-                    resolve();
+                    child_process.execFile(files[0], ['/s', 'WEB_JAVA=0', 'INSTALLDIR=' + _path, '/L java.log'], {
+                        cwd: process.cwd(),
+                        env: process.env
+                    }, function () {
+                        resolve(_path);
+                    });
                 });
             });
         };
@@ -724,16 +770,20 @@ var Services;
 })(Services || (Services = {}));
 
 angular.module('app', [
+    'ngAnimate',
     'ui.router',
     'ngSanitize',
     'angles',
     'ngLocale',
     'angularUtils.directives.dirPagination',
-    'ct.ui.router.extras'
+    'ct.ui.router.extras',
+    'angular-growl'
 ]).value('NEM', {
     version: '0.0.0'
 }).controller('Global', Controllers.Global).provider('WalletConfig', Providers.WalletConfig).service('Java', Services.Java).service('Log', Services.Log).directive('serverLog', Directives.ServerLog.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config([
-    '$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', function ($stateProvider, $locationProvider, $urlRouterProvider, NemPropertiesProvider, WalletConfig) {
+    '$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', 'growlProvider', function ($stateProvider, $locationProvider, $urlRouterProvider, NemPropertiesProvider, WalletConfig, growlProvider) {
+        growlProvider.globalPosition('bottom-right');
+
         WalletConfig.load();
 
         NemPropertiesProvider.instance('nis', {
@@ -832,26 +882,38 @@ angular.module('app', [
     'Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', '$state', 'NEM', function (Java, NemProperties, WalletConfig, $timeout, Log, $state, NEM) {
         request.get('http://bob.nem.ninja/version.txt', {}, function (err, res, version) {
             NEM.version = version.match(/(\d\.\d\.\d)/)[1];
-        });
 
-        Java.decide().then(function () {
-            Log.add('Version is greater or equal to 1.8', 'java');
-            return NemProperties.instance('nis').run();
-        }, function (err) {
-            Log.add(err.message, 'java');
-            return Java.downloadAndInstall();
-        }).then(function () {
-            Log.add('Java downloaded and installed', 'java');
-            return NemProperties.instance('ncc').run();
-        }, function (err) {
-            Log.add(err.message, 'java');
-            return new Error('Failed to download Java, install manually on ' + Services.Java.javaUrl);
-        }).then(function () {
-            $timeout(function () {
-                WalletConfig.loaded = true;
-                $state.go('ncc');
+            Java.decide().catch(function (err) {
+                Log.add(err.message, 'java');
+
+                return Java.downloadAndInstall().then(function (value) {
+                    Log.add('Java downloaded and installed', 'java');
+                    return true;
+                }, function (err) {
+                    Log.add(err.message, 'java');
+                    return new Error('Failed to download Java, install manually on ' + Services.Java.javaUrl);
+                });
+            }).catch(function (err) {
+                Log.add(err.message, 'java');
+            }).then(function () {
+                return NemProperties.instance('nis').run();
+            }).then(function () {
+                return NemProperties.instance('ncc').run();
+            }, function (err) {
+                Log.add(err.message, 'nis');
+                if (err.code === 'ENOENT') {
+                    return NemProperties.instance('nis').download().then(function () {
+                        return NemProperties.instance('nis').run();
+                    }).then(function () {
+                        return NemProperties.instance('ncc').run();
+                    });
+                }
+            }).then(function () {
+                $timeout(function () {
+                    WalletConfig.loaded = true;
+                    $state.go('ncc');
+                });
             });
-        }, function () {
         });
 
         process.on('exit', function () {
