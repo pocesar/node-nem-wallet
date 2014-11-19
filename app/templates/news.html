@@ -1,27 +1,60 @@
 <div class="container pad-top">
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <div class="panel-title">News</div>
-        </div>
-
-        <div class="panel-body" ng-if="news.loading">
-            <loading></loading>
-        </div>
-
-        <ul class="media-list list-group" ng-hide="news.loading">
-            <li class="list-group-item" ng-repeat="(title, item) in news.news">
-                <div class="media-body">
-                    <div class="media-heading">
-                        <h4><a target="_blank" href="{{item.url}}">{{item.title}}</a></h4>
-                        <time>{{item.date | date:'short'}}</time>
-                    </div>
-                    <div class="news-listing"></div>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <div class="panel-title">News - Forums</div>
                 </div>
-            </li>
-        </ul>
 
-        <div class="panel-footer">
-            <button ng-click="news.load()"><i class="fa fa-refresh"></i></button>
+                <div class="panel-body" ng-if="news.loading('forums')">
+                    <loading></loading>
+                </div>
+
+                <ul class="media-list list-group" ng-hide="news.loading('forums')">
+                    <li class="list-group-item" ng-repeat="(title, item) in news.states.forums.data">
+                        <div class="media-body">
+                            <div class="media-heading">
+                                <h4><a target="_blank" href="{{item.url}}">{{item.title}}</a></h4>
+                                <time>{{item.date | date:'short'}}</time>
+                            </div>
+                            <div class="news-listing"></div>
+                        </div>
+                    </li>
+                </ul>
+
+                <div class="panel-footer">
+                    <button ng-click="news.load('forums')" class="btn"><i class="fa fa-refresh"></i></button>
+                    <a ng-href="{{ news.states.forums.baseurl }}" class="btn" target="_blank"><i class="fa fa-external-link"></i></a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <div class="panel-title">News - Reddit</div>
+                </div>
+
+                <div class="panel-body" ng-if="news.loading('reddit')">
+                    <loading></loading>
+                </div>
+
+                <ul class="media-list list-group" ng-hide="news.loading('reddit')">
+                    <li class="list-group-item" ng-repeat="(title, item) in news.states.reddit.data">
+                        <div class="media-body">
+                            <div class="media-heading">
+                                <h4><a target="_blank" href="{{item.url}}">{{item.title}}</a></h4>
+                                <time>{{item.date | date:'short'}}</time>
+                            </div>
+                            <div class="news-listing"></div>
+                        </div>
+                    </li>
+                </ul>
+
+                <div class="panel-footer">
+                    <button ng-click="news.load('reddit')"  class="btn"><i class="fa fa-refresh"></i></button>
+                    <a ng-href="{{ news.states.reddit.baseurl }}" class="btn" target="_blank"><i class="fa fa-external-link"></i></a>
+                </div>
+            </div>
         </div>
     </div>
 </div>

@@ -48,8 +48,8 @@ a {
 
 [ui-view]:not(.ncc) {
   position: relative;
-  max-height: calc(100% - 50px);
-  min-height: calc(100% - 50px);
+  max-height: calc(100% - 82px);
+  min-height: calc(100% - 82px);
   overflow-y: auto; }
 
 [ui-view="wallet"] {
@@ -65,16 +65,19 @@ a {
 
 .chart {
   position: relative;
-  height: calc(550px); }
+  height: calc(550px - 82px);
+  width: 100%; }
   .chart canvas {
     position: absolute;
     top: 0;
-    left: 0; }
+    left: 0;
+    width: 100% !important;
+    height: 100% !important; }
 
 .ncc-iframe {
   border: 0;
   width: 100%;
-  min-height: calc(100% - 50px);
+  min-height: calc(100% - 82px);
   min-width: 100%; }
 
 .pad-top {
@@ -125,6 +128,15 @@ h2 {
 
 p {
   margin-bottom: 0; }
+
+.main-nav-bar > li > a {
+  text-align: center; }
+.main-nav-bar .fa {
+  font-size: 32px;
+  vertical-align: top;
+  display: block;
+  text-align: center;
+  color: #444444; }
 
 .btn {
   font-family: 'Source Sans Pro';

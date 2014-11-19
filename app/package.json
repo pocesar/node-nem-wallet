@@ -20,8 +20,8 @@
     "request": "2.x.x",
     "rimraf": "2.x.x",
     "semver": "4.x",
-    "temp": "0.x.x",
-    "tar": "1.x"
+    "tar": "1.x",
+    "temp": "0.x.x"
   },
   "window": {
     "width": 1285,

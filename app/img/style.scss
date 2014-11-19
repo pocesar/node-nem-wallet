@@ -54,6 +54,8 @@ a, input, textarea {
     }
 }
 
+$nav-bar-height: 82px;
+
 body {
     margin: 0;
     padding: 0;
@@ -85,8 +87,8 @@ a {
 
 [ui-view]:not(.ncc) {
     position: relative;
-    max-height: calc(100% - 50px);
-    min-height: calc(100% - 50px);
+    max-height: calc(100% - #{$nav-bar-height});
+    min-height: calc(100% - #{$nav-bar-height});
     overflow-y: auto;
 }
 
@@ -105,18 +107,21 @@ a {
 
 .chart {
     position: relative;
-    height: calc(550px);
+    height: calc(550px - #{$nav-bar-height});
+    width: 100%;
     canvas {
         position: absolute;
         top: 0;
         left: 0;
+        width: 100% !important;
+        height: 100% !important;
     }
 }
 
 .ncc-iframe {
     border: 0;
     width: 100%;
-    min-height: calc(100% - 50px);
+    min-height: calc(100% - #{$nav-bar-height});
     min-width: 100%;
 }
 
@@ -184,6 +189,19 @@ h2 {
 
 p {
     margin-bottom: 0;
+}
+
+.main-nav-bar {
+    > li > a {
+        text-align: center;
+    }
+    .fa {
+        font-size: 32px;
+        vertical-align: top;
+        display: block;
+        text-align: center;
+        color: $darkgray;
+    }
 }
 
 .btn {

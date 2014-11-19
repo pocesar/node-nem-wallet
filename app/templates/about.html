@@ -17,10 +17,16 @@
                 Report Issues: <a href="{{ global.pkg.bugs.url }}" target="_blank">{{ global.pkg.bugs.url }}</a>
             </li>
             <li class="list-group-item">
-                Local NEM Version: <a>{{ about.versions.nis }}</a>
+                Latest Java Version: {{ about.java.latest }}
             </li>
             <li class="list-group-item">
-                Last NEM Version: <a href="http://bob.nem.ninja" target="_blank">{{ global.NEM.version }}</a>
+                Java Version: {{ about.java.version.full }}
+            </li>
+            <li class="list-group-item">
+                Local NEM Version: {{ about.versions.nis }}
+            </li>
+            <li class="list-group-item">
+                Latest NEM Version: <a href="http://bob.nem.ninja" target="_blank">{{ global.NEM.version }}</a>
             </li>
         </ul>
     </div>

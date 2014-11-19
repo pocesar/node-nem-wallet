@@ -15,15 +15,15 @@
 
         <nav class="navbar navbar-default navbar-fixed-bottom" role="navigation">
           <div class="container">
-            <ul class="nav navbar-nav">
-                <li ui-sref="ncc" ng-show="global.loaded()" ui-sref-active="active" class=""><a>NCC</a></li>
-                <li ui-sref="log" ui-sref-active="active" class=""><a>Log&nbsp;&nbsp;<span ng-bind="global.Log.count()" class="badge"></span></a></li>
-                <li ui-sref="config" ui-sref-active="active" class=""><a>Config</a></li>
-                <li ui-sref="news" ui-sref-active="active" class=""><a>News</a></li>
-                <li ui-sref="backup" ng-show="global.loaded()" ui-sref-active="active" class=""><a>Backup</a></li>
-                <li ui-sref="market" ui-sref-active="active" class=""><a>Market</a></li>
-                <li ui-sref="about" ui-sref-active="active" class=""><a>About</a></li>
-                <li class="pull-right"><a ng-click="global.shutdown()"><i class="fa fa-power-off"></i></a></li>
+            <ul class="nav navbar-nav main-nav-bar">
+                <li ui-sref="ncc" ng-show="global.loaded()" ui-sref-active="active" class=""><a><i class="fa fa-money"></i>Wallet</a></li>
+                <li ui-sref="log" ui-sref-active="active" class=""><a><i class="fa fa-filter"></i>Log&nbsp;&nbsp;<span ng-bind="global.Log.count()" class="badge"></span></a></li>
+                <li ui-sref="config" ui-sref-active="active" class=""><a><i class="fa fa-cog"></i>Config</a></li>
+                <li ui-sref="news" ui-sref-active="active" class=""><a><i class="fa fa-rss"></i>News</a></li>
+                <li ui-sref="backup" ng-show="global.loaded()" ui-sref-active="active" class=""><a><i class="fa fa-save"></i>Backup</a></li>
+                <li ui-sref="market" ui-sref-active="active" class=""><a><i class="fa fa-line-chart"></i>Market</a></li>
+                <li ui-sref="about" ui-sref-active="active" class=""><a><i class="fa fa-question-circle"></i>About</a></li>
+                <li class="pull-right"><a ng-click="global.shutdown()"><i class="fa fa-power-off"></i>Quit</a></li>
             </ul>
           </div>
         </nav>
@@ -31,7 +31,7 @@
     <div growl></div>
 
     <script src="bower_components/jquery/dist/jquery.js"></script>
-    <script src="bower_components/chartjs/Chart.js"></script>
+    <script src="bower_components/Chart.js/Chart.js"></script>
     <script src="bower_components/angular/angular.js"></script>
     <script src="bower_components/angular-animate/angular-animate.js"></script>
     <script src="bower_components/angular-sanitize/angular-sanitize.js"></script>

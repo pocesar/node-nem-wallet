@@ -1,4 +1,6 @@
-(function(){
+module Lang {
+    'use strict';
+
     var glob = require('glob'), _ = require('lodash');
 
     glob('bower_components/angular-i18n/angular-locale_*.js', function(err: Error, files: string[]) {
@@ -9,4 +11,4 @@
             }
         });
     });
-})();
+}

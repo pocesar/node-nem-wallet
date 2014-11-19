@@ -13,7 +13,7 @@ module Boot {
 
 var
     win: gui.Window = gui.Window.get(),
-    cwd: string = path.dirname(process.execPath),
+    cwd: string = process.execPath.indexOf('node_modules') !== -1 ? process.cwd() : path.join(path.dirname(process.execPath), '.'),
     fs: any = Promise.promisifyAll(require('fs'));
 
 interface IJavaVersion {
@@ -24,6 +24,11 @@ interface IJavaVersion {
 
 interface IJavaVersions {
     [index: string]: IJavaVersion;
+}
+
+interface IJavaSemver {
+    full: string;
+    semver: string;
 }
 
 interface INEMConfig {
@@ -78,10 +83,10 @@ module Controllers {
     }
 
     export class About {
-        static $inject: string[] = ['NemProperties'];
+        static $inject: string[] = ['NemProperties', 'Java'];
         public versions: any;
 
-        constructor(NP: Providers.INemConfigInstance) {
+        constructor(NP: Providers.INemConfigInstance, public java: Services.Java) {
             this.versions = {
                 nis: NP.instance('nis').version,
                 ncc: NP.instance('ncc').version
@@ -108,6 +113,7 @@ module Controllers {
         };
         public current: string = 'btc';
         public config: any = {
+            responsive: true,
             scaleBeginAtZero: false,
             pointDot : false,
             showScale: false,
@@ -148,14 +154,18 @@ module Controllers {
                 this.$scope.$evalAsync(() => {
                     var btc: any = [], usd: any = [], times: any = {usd: [], btc: []}, limit: number = 20;
 
-                    _.forEach(total['price_btc_data'], (item: any) => {
-                        times.btc.push((new Date(item[0])).toLocaleString());
-                        btc.push(item[1]);
+                    _.forEach(total['price_btc_data'], (item: any, index: number) => {
+                        if (index % 2 === 0) {
+                            times.btc.push((new Date(item[0])).toLocaleString());
+                            btc.push(item[1]);
+                        }
                     });
 
-                    _.forEach(total['price_usd_data'], (item: any) => {
-                        times.usd.push((new Date(item[0])).toLocaleString());
-                        usd.push(item[1]);
+                    _.forEach(total['price_usd_data'], (item: any, index: number) => {
+                        if (index % 2 === 0) {
+                            times.usd.push((new Date(item[0])).toLocaleString());
+                            usd.push(item[1]);
+                        }
                     });
 
                     this.last.usd = _.last(usd);
@@ -172,7 +182,7 @@ module Controllers {
                                 pointStrokeColor: '#fff',
                                 pointHighlightFill: '#fff',
                                 pointHighlightStroke: 'rgba(220,220,220,1)',
-                                data: btc
+                                data: usd
                             },
                         ]
                     };
@@ -187,7 +197,7 @@ module Controllers {
                                 pointStrokeColor: '#fff',
                                 pointHighlightFill: '#fff',
                                 pointHighlightStroke: 'rgba(151,187,205,1)',
-                                data: usd
+                                data: btc
                             }
                         ]
                     };
@@ -207,33 +217,63 @@ module Controllers {
         }
     }
 
+    interface INewsState {
+        url: string;
+        loading: boolean;
+        data: any[];
+        limit: number;
+        baseurl: string;
+    }
+
     export class News {
         public FeedParser: any = require('feedparser');
-        public news: any[];
-        public loading: boolean = true;
+        public states: {[index: string]: INewsState} = {
+            'reddit': {
+                url: 'http://www.reddit.com/r/nem/.rss',
+                baseurl: 'http://www.reddit.com/r/nem',
+                loading: true,
+                limit: 5,
+                data: []
+            },
+            'forums': {
+                url: 'https://forum.nemcoin.com/index.php?type=rss;action=.xml',
+                baseurl: 'https://forum.nemcoin.com/index.php',
+                loading: true,
+                limit: -1,
+                data: []
+            }
+        };
         static $inject: string[] = ['$scope','$sce','Log'];
 
-        load() {
+        loading(type: string, set?: boolean): boolean {
+            if (!_.isUndefined(set)) {
+                this.states[type].loading = set;
+            }
+            return this.states[type].loading;
+        }
+
+        load(type: string) {
             this.$scope.$eval(() => {
-                this.loading = true;
+                this.loading(type, true);
             });
-            return this.fetch().then((av: any) => {
+            return this.fetch(type).then((av: any) => {
                 this.$scope.$evalAsync(() => {
-                    this.news = av;
-                    this.loading = false;
+                    this.states[type].data = av;
+                    this.loading(type, false);
                 });
             }, (err: Error) => {
                 this.$scope.$evalAsync(() => {
-                    this.loading = false;
+                    this.loading(type, false);
                     this.Log.add(err.message, 'client');
                 });
             });
         }
 
-        fetch(): Promise<any> {
+        fetch(type: string): Promise<any> {
+            var state = this.states[type];
             return new Promise<any>((resolve: any, reject: any) => {
                 var
-                    req: request.Request = request('https://forum.nemcoin.com/index.php?type=rss;action=.xml'),
+                    req: request.Request = request(state.url),
                     feedparser: any = new this.FeedParser(),
                     items: any[] = [];
 
@@ -268,15 +308,27 @@ module Controllers {
                 });
 
                 feedparser.on('end', function(){
-                    var _items: any = {};
+                    var _items: any = {}, limit = 0;
+
+                    var addItem = (item: any) => {
+                        _items[item.title] = {
+                            title: item.title,
+                            url: item.permalink,
+                            date: new Date(item.date)
+                        };
+                    };
+
                     _.forEach(items, (item: any) => {
                         if (!_items[item.title]) {
-                            _items[item.title] = {
-                                title: item.title,
-                                url: item.permalink,
-                                date: new Date(item.date)
-                            };
+                            if (state.limit !== -1) {
+                                if (limit < state.limit) {
+                                    addItem(item);
+                                }
+                            } else {
+                                addItem(item);
+                            }
                         }
+                        limit++;
                     });
                     resolve(_items);
                 });
@@ -288,7 +340,9 @@ module Controllers {
         }
 
         constructor(private $scope: ng.IScope, private $sce: ng.ISCEService, private Log: Services.Log) {
-            this.load();
+            Promise.reduce(_.keys(this.states), (ac, s) => {
+                return this.load(s);
+            }, '');
         }
     }
 
@@ -413,31 +467,11 @@ module Directives {
 
         constructor(private Log: Services.Log) {
             this.link = (scope: ng.IScope) => {
-                var nis: Services.ILog = null, ncc: Services.ILog = null;
-
                 scope.$watch(() => {
-                    var last: Services.ILog;
-                    if (Log.logs['nis'] && Log.logs['nis'][0] !== nis) {
-                        nis = Log.logs['nis'][0];
-                    }
-                    if (Log.logs['ncc'] && Log.logs['ncc'][0] !== ncc) {
-                        ncc = Log.logs['ncc'][0];
-                    }
-
-                    if (nis && ncc) {
-                        if (nis.time > ncc.time) {
-                            last = nis;
-                        } else {
-                            last = ncc;
-                        }
-                    } else if (nis) {
-                        last = nis;
-                    } else if (ncc) {
-                        last = ncc;
-                    }
-
-                    scope['item'] = last;
-                });
+                    return Log.last();
+                }, (item: any) => {
+                    scope['item'] = item;
+                }, true);
             };
         }
 
@@ -468,12 +502,17 @@ module Providers {
         tray: boolean = false;
         beta: boolean = false;
         testnet: boolean = false;
-        folder: string = path.join(process.cwd(), 'nem');
+        folder: string = path.join(cwd, 'nem');
         loaded: boolean = false;
         updating: boolean = false;
 
+        _internalState(name: string) {
+            return !_.contains(['loaded','updating'], name);
+        }
+
         save() {
-            localStorage.setItem('wallet', JSON.stringify(this));
+            var self: any = this;
+            localStorage.setItem('wallet', JSON.stringify(_.filter(self, this._internalState, this)));
             return this;
         }
 
@@ -484,7 +523,7 @@ module Providers {
                     obj: any = JSON.parse(localStorage.getItem('wallet'));
 
                 _.forEach<any>(obj, (value: any, key: string) => {
-                    if (_.has(cnf, key) && !_.isFunction(cnf[key])) {
+                    if (_.has(cnf, key) && !_.isFunction(cnf[key]) && this._internalState(key)) {
                         cnf[key] = value;
                     }
                 });
@@ -662,6 +701,18 @@ module Services {
         public $inject: string[] = ['$timeout'];
         public logs: {[index: string]: ILog[]} = {};
 
+        last() {
+            var lasts: Services.ILog[] = _.map(this.logs, (logs: Services.ILog[]): Services.ILog => {
+                return _.first(logs);
+            });
+
+            lasts.sort((a, b) => {
+                return a.time - b.time;
+            });
+
+            return _.last(lasts);
+        }
+
         count(type: string = 'none'): number {
             if (type && typeof this.logs[type] !== 'undefined') {
                 return this.logs[type].length;
@@ -702,7 +753,14 @@ module Services {
         static $inject = ['Log'];
         static javaUrl: string = 'http://www.oracle.com/technetwork/java/javase/downloads/jre8-downloads-2133155.html';
         static jreRegex: string = 'https?:\/\/download\.oracle\.com\/otn-pub\/java\/jdk\/[^\/]+?\/jre-[^\-]+?-';
-        static versionRegex: RegExp = /java version "([\.\d]+)[^"]+"/;
+        static versionRegex: RegExp = /java version "(([\.\d]+)[^"]+)"/;
+        downloaded: number = 0;
+        latest: string = '?';
+        version: IJavaSemver = {
+            semver: '?',
+            full: '?'
+        };
+
         static javaVersions: IJavaVersions = {
             'darwin': {
                 'arm': '',
@@ -730,29 +788,47 @@ module Services {
                 'x64': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98428'
             }
         };
-        public javaBin: string;
+
+        exec(command: string[] = []) {
+            return child_process.spawn(path.join(cwd, 'jre', 'bin', 'java'), command, {
+                env: process.env
+            });
+        }
+
+        _progress() {
+            return () => {
+                console.log(arguments);
+            };
+        }
 
         downloadAndInstall(): Promise<any> {
             return new Promise<any>((resolve: any, reject: any) => {
                 var url: string;
                 if (!(url = this.getUrl())) {
-                    reject(new Error('Could not find suitable OS'));
+                    return reject(new Error('Could not find suitable OS'));
                 }
+
+                this.Log.add('Beginning Java download', 'java');
 
                 var
                     Download = require('download'),
-                    dl = new Download({  }).get(url);
+                    dl = new Download({  })
+                    .dest(path.join(cwd, 'temp'))
+                    .get(url)
+                    .use(this._progress());
 
                 dl.run((err: Error, files: string[], stream: NodeJS.ReadableStream) => {
                     if (err) {
                         return reject(err);
                     }
-                    var _path: string = path.join(process.cwd(), 'jre');
+                    var _path: string = path.join(cwd, 'jre');
 
-                    child_process.execFile(files[0], ['/s', 'WEB_JAVA=0', 'INSTALLDIR=' + _path, '/L java.log'], {
+                    child_process.execFile(files[0], ['/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _path + '"', '/L java.log'], {
                         cwd: process.cwd(),
                         env: process.env
                     }, () => {
+                        this.version.semver = this.latest.split('_')[0];
+                        this.version.full = this.latest;
                         resolve(_path);
                     });
                 });
@@ -771,31 +847,52 @@ module Services {
             return false;
         }
 
+        _parseVersion(version: string) {
+            var
+                versions = version.split('_'),
+                _vs = versions[0].split('.');
+
+            return {
+                major: _vs[0],
+                minor: _vs[1],
+                patch: _vs[2],
+                revision: versions[1]
+            };
+        }
+
         decide(): Promise<any> {
             return new Promise<any>((resolve: any, reject: any) => {
-                request.get('http://java.com/applet/JreCurrentVersion2.txt', (version) => {
-                    var revision: string = version.split("_")[1];
-
-                });
-                var child: child_process.ChildProcess = child_process.spawn('java', ['-version'], {env: process.env});
-
-                child.on('error', (err: Error) => {
-                    reject(err);
-                });
-
-                child.stderr.on('data', (result: Buffer) => {
-                    var version = result.toString().match(Java.versionRegex);
-
-                    if (version && typeof version[1] === 'string') {
-                        if (semver.satisfies(version[1], '>=1.8.0')) {
-                            this.javaBin = 'java';
-                            resolve(true);
-                        } else {
-                            reject(new Error('Java version less than 1.8'));
-                        }
-                    } else {
-                        reject(new Error('No Java version found'));
+                request.get('http://java.com/applet/JreCurrentVersion2.txt', (err: Error, response: any, version: string) => {
+                    if (err) {
+                        this.Log.add('Couldn\'t fetch latest version', 'java');
+                        return reject(err);
                     }
+                    this.Log.add('Latest Java version ' + version, 'java');
+                    this.latest = version;
+
+                    var child: child_process.ChildProcess = this.exec(['-version']);
+
+                    child.on('error', (err: Error) => {
+                        reject(err);
+                    });
+
+                    child.stderr.on('data', (result: Buffer) => {
+                        var version = result.toString().match(Java.versionRegex);
+
+                        if (version && typeof version[2] === 'string') {
+                            this.version.semver = version[2];
+                            this.version.full = version[1];
+
+                            if (semver.gte(version[1], this.latest)) {
+                                resolve(true);
+                            } else {
+                                reject(new Error('Java is outdated'));
+                            }
+                        } else {
+                            reject(new Error('No Java version found'));
+                        }
+                    });
+
                 });
             });
         }
@@ -943,13 +1040,24 @@ angular
     ) => {
 
     request.get('http://bob.nem.ninja/version.txt', {}, (err: Error, res: any, version: string) => {
-        NEM.version = version.match(/(\d\.\d\.\d)/)[1];
+        NEM.version = version.match(/([\d]+\.[\d]+\.[\d]+)/)[1];
 
         Log.add('Latest NEM version is ' + NEM.version, 'client');
 
         Java
         .decide()
-        .catch((err: Error) => {
+        .catch(function(_err: Error){
+            var err: any = _err;
+            if (err['code'] === 'ENOENT') {
+                Log.add('Java 8 not installed locally', 'java');
+            } else {
+                Log.add(err.message, 'java');
+            }
+        })
+        .then(function(){
+            return Java.downloadAndInstall();
+        })
+        /*.catch((err: Error) => {
             Log.add(err.message, 'java');
 
             return Java.downloadAndInstall().then((value: any) => {
@@ -981,7 +1089,7 @@ angular
                 WalletConfig.loaded = true;
                 $state.go('ncc');
             });
-        });
+        })*/;
     });
 
     process.on('exit', () => {
