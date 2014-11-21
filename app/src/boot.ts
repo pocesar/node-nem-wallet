@@ -240,7 +240,7 @@ module Controllers {
                 url: 'http://www.reddit.com/r/nem/.rss',
                 baseurl: 'http://www.reddit.com/r/nem',
                 loading: true,
-                limit: 5,
+                limit: 4,
                 data: []
             },
             'forums': {
@@ -254,7 +254,7 @@ module Controllers {
                 url: 'https://medium.com/feed/@xtester',
                 baseurl: 'https://medium.com/@xtester',
                 loading: true,
-                limit: -1,
+                limit: 5,
                 data: []
             }
         };

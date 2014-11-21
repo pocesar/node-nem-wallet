@@ -177,6 +177,13 @@ var Boot;
                         loading: true,
                         limit: -1,
                         data: []
+                    },
+                    'medium': {
+                        url: 'https://medium.com/feed/@xtester',
+                        baseurl: 'https://medium.com/@xtester',
+                        loading: true,
+                        limit: -1,
+                        data: []
                     }
                 };
                 Promise.reduce(_.keys(this.states), function (ac, s) {

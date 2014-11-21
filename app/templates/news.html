@@ -57,4 +57,34 @@
             </div>
         </div>
     </div>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <div class="panel-title">News - Medium</div>
+                </div>
+
+                <div class="panel-body" ng-if="news.loading('medium')">
+                    <loading></loading>
+                </div>
+
+                <ul class="media-list list-group" ng-hide="news.loading('medium')">
+                    <li class="list-group-item" ng-repeat="(title, item) in news.states.medium.data">
+                        <div class="media-body">
+                            <div class="media-heading">
+                                <h4><a target="_blank" href="{{item.url}}">{{item.title}}</a></h4>
+                                <time>{{item.date | date:'short'}}</time>
+                            </div>
+                            <div class="news-listing"></div>
+                        </div>
+                    </li>
+                </ul>
+
+                <div class="panel-footer">
+                    <button ng-click="news.load('medium')"  class="btn"><i class="fa fa-refresh"></i></button>
+                    <a ng-href="{{ news.states.medium.baseurl }}" class="btn" target="_blank"><i class="fa fa-external-link"></i></a>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
