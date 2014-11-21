@@ -92,6 +92,10 @@ a {
     overflow-y: auto;
 }
 
+.news-body {
+    min-height: 400px;
+}
+
 [ui-view="wallet"] {
     position: absolute;
     top: 0;

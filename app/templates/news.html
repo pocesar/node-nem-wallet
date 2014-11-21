@@ -10,7 +10,7 @@
                     <loading></loading>
                 </div>
 
-                <ul class="media-list list-group" ng-hide="news.loading('forums')">
+                <ul class="media-list list-group news-body" ng-hide="news.loading('forums')">
                     <li class="list-group-item" ng-repeat="(title, item) in news.states.forums.data">
                         <div class="media-body">
                             <div class="media-heading">
@@ -38,7 +38,7 @@
                     <loading></loading>
                 </div>
 
-                <ul class="media-list list-group" ng-hide="news.loading('reddit')">
+                <ul class="media-list list-group news-body" ng-hide="news.loading('reddit')">
                     <li class="list-group-item" ng-repeat="(title, item) in news.states.reddit.data">
                         <div class="media-body">
                             <div class="media-heading">
@@ -68,7 +68,7 @@
                     <loading></loading>
                 </div>
 
-                <ul class="media-list list-group" ng-hide="news.loading('medium')">
+                <ul class="media-list list-group news-body" ng-hide="news.loading('medium')">
                     <li class="list-group-item" ng-repeat="(title, item) in news.states.medium.data">
                         <div class="media-body">
                             <div class="media-heading">
