@@ -8,7 +8,7 @@ var semver = require('semver');
 var Boot;
 (function (Boot) {
     'use strict';
-    var win = gui.Window.get(), cwd = process.execPath.indexOf('node_modules') !== -1 ? process.cwd() : path.join(path.dirname(process.execPath), '.'), fs = Promise.promisifyAll(require('fs'));
+    var win = gui.Window.get(), cwd = process.execPath.indexOf('node_modules') !== -1 ? process.cwd() : path.join(path.dirname(process.execPath), '.'), fs = Promise.promisifyAll(require('graceful-fs'));
     function templateAsString(filename) {
         return fs.readFileAsync(path.join(process.cwd(), 'templates', filename)).then(function (v) {
             return v.toString();
@@ -412,7 +412,7 @@ var Boot;
         var WalletConfig = (function () {
             function WalletConfig() {
                 this.tray = false;
-                this.beta = false;
+                this.beta = true;
                 this.testnet = false;
                 this.folder = path.join(cwd, 'nem');
                 this.loaded = false;
@@ -644,16 +644,27 @@ var Boot;
                     semver: '?',
                     full: '?'
                 };
+                this.javaBin = 'java';
             }
             Java.prototype.exec = function (command) {
                 if (command === void 0) { command = []; }
-                return child_process.spawn(path.join(cwd, 'jre', 'bin', 'java'), command, {
+                return child_process.spawn(this.javaBin, command, {
                     env: process.env
                 });
             };
             Java.prototype._progress = function () {
-                return function () {
+                return function (res, url, cb) {
                     console.log(arguments);
+                    if (res.headers['content-length']) {
+                        var total = parseInt(res.headers['content-length'], 10), progress = 0;
+                        res.on('data', function (data) {
+                            progress += data.length;
+                            this.downloaded = (progress / total) * 100;
+                        });
+                        res.on('end', function () {
+                            cb();
+                        });
+                    }
                 };
             };
             Java.prototype.downloadAndInstall = function () {
@@ -664,31 +675,44 @@ var Boot;
                         return reject(new Error('Could not find suitable OS'));
                     }
                     _this.Log.add('Beginning Java download', 'java');
-                    var Download = require('download'), dl = new Download({}).dest(path.join(cwd, 'temp')).get(url).use(_this._progress());
-                    dl.run(function (err, files, stream) {
-                        if (err) {
-                            return reject(err);
+                    var progress = require('request-progress'), filename = path.join(cwd, 'temp', url.filename), file = fs.createWriteStream(filename), dl = progress(request.get(url.url)).on('progress', function (state) {
+                        _this.downloaded = state.percent;
+                    }).on('error', function (err) {
+                        reject(err);
+                    }).pipe(file).on('error', function (err) {
+                        reject(err);
+                    }).on('close', function () {
+                        var _path = path.join(cwd, 'jre'), batch = path.join(cwd, 'temp', url.batch);
+                        fs.writeFileSync(batch, [filename, '/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _path + '"', '/L java.log'].join(' '));
+                        try {
+                            var e = child_process['execFile'];
+                            var child = e(batch, {
+                                env: process.env
+                            });
+                            child.on('error', function (err) {
+                                throw err;
+                            });
+                            child.on('exit', function () {
+                                _this.version.semver = _this.latest.split('_')[0];
+                                _this.version.full = _this.latest;
+                                _this.javaBin = path.join(_path, 'bin', 'java');
+                                resolve();
+                            });
                         }
-                        var _path = path.join(cwd, 'jre');
-                        child_process.execFile(files[0], ['/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _path + '"', '/L java.log'], {
-                            cwd: process.cwd(),
-                            env: process.env
-                        }, function () {
-                            _this.version.semver = _this.latest.split('_')[0];
-                            _this.version.full = _this.latest;
-                            resolve(_path);
-                        });
+                        catch (e) {
+                            reject(new Error('Java couldn\'t be installed automatically, execute the file "install-java" in the temp directory'));
+                        }
                     });
                 });
             };
             Java.prototype.getUrl = function () {
                 var obj;
                 if (typeof (obj = Java.javaVersions[process.platform]) === 'object') {
-                    if (typeof obj[process.arch] === 'string' && !_.isEmpty(obj[process.arch])) {
+                    if (typeof obj[process.arch] !== 'undefined' && obj[process.arch].url && obj[process.arch].filename) {
                         return obj[process.arch];
                     }
                 }
-                return false;
+                return null;
             };
             Java.prototype._parseVersion = function (version) {
                 var versions = version.split('_'), _vs = versions[0].split('.');
@@ -709,20 +733,26 @@ var Boot;
                         }
                         _this.Log.add('Latest Java version ' + version, 'java');
                         _this.latest = version;
-                        var child = _this.exec(['-version']);
+                        var latest = _this.latest.split('_')[0], revision = _this.latest.split('_')[1], child = _this.exec(['-version']);
                         child.on('error', function (err) {
                             reject(err);
                         });
                         child.stderr.on('data', function (result) {
-                            var version = result.toString().match(Java.versionRegex);
+                            var version = result.toString().match(Java.versionRegex), localrevision;
                             if (version && typeof version[2] === 'string') {
-                                _this.version.semver = version[2];
-                                _this.version.full = version[1];
-                                if (semver.gte(version[1], _this.latest)) {
-                                    resolve(true);
+                                try {
+                                    _this.version.semver = version[2];
+                                    _this.version.full = version[1];
+                                    localrevision = version[1].split('_')[1];
+                                    if (semver.gte(version[2], latest, true) && ~~localrevision >= ~~revision) {
+                                        resolve();
+                                    }
+                                    else {
+                                        reject(new Error('Java is outdated'));
+                                    }
                                 }
-                                else {
-                                    reject(new Error('Java is outdated'));
+                                catch (e) {
+                                    reject(new Error('Could not determine Java version, install manually from ' + _this.getUrl().url));
                                 }
                             }
                             else {
@@ -738,29 +768,81 @@ var Boot;
             Java.versionRegex = /java version "(([\.\d]+)[^"]+)"/;
             Java.javaVersions = {
                 'darwin': {
-                    'arm': '',
-                    'ia32': '',
-                    'x64': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97361'
+                    'arm': {
+                        url: '',
+                        filename: ''
+                    },
+                    'ia32': {
+                        url: '',
+                        filename: ''
+                    },
+                    'x64': {
+                        url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97361',
+                        filename: 'jre.dmg',
+                        batch: 'install-java.sh'
+                    }
                 },
                 'freebsd': {
-                    'arm': '',
-                    'ia32': '',
-                    'x64': ''
+                    'arm': {
+                        url: '',
+                        filename: ''
+                    },
+                    'ia32': {
+                        url: '',
+                        filename: ''
+                    },
+                    'x64': {
+                        url: '',
+                        filename: ''
+                    }
                 },
                 'linux': {
-                    'arm': '',
-                    'ia32': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97358',
-                    'x64': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97360'
+                    'arm': {
+                        url: '',
+                        filename: ''
+                    },
+                    'ia32': {
+                        url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97358',
+                        filename: 'jre.tar.gz',
+                        batch: 'install-java.sh'
+                    },
+                    'x64': {
+                        url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97360',
+                        filename: 'jre.tar.gz',
+                        batch: 'install-java.sh'
+                    }
                 },
                 'sunos': {
-                    'arm': '',
-                    'ia32': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97363',
-                    'x64': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97364'
+                    'arm': {
+                        url: '',
+                        filename: ''
+                    },
+                    'ia32': {
+                        url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97363',
+                        filename: 'jre.tar.gz',
+                        batch: 'install-java.sh'
+                    },
+                    'x64': {
+                        url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97364',
+                        filename: 'jre.tar.gz',
+                        batch: 'install-java.sh'
+                    }
                 },
                 'win32': {
-                    'arm': '',
-                    'ia32': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98426',
-                    'x64': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98428'
+                    'arm': {
+                        url: '',
+                        filename: ''
+                    },
+                    'ia32': {
+                        url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98426',
+                        filename: 'jre.exe',
+                        batch: 'install-java.cmd'
+                    },
+                    'x64': {
+                        url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98428',
+                        filename: 'jre.exe',
+                        batch: 'install-java.cmd'
+                    }
                 }
             };
             return Java;
@@ -777,7 +859,8 @@ var Boot;
         'ct.ui.router.extras',
         'angular-growl'
     ]).value('NEM', {
-        version: '0.0.0'
+        version: '0.0.0',
+        beta: false
     }).controller('Global', Controllers.Global).provider('WalletConfig', Providers.WalletConfig).service('Java', Services.Java).service('Log', Services.Log).directive('serverLog', Directives.ServerLog.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config(['$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', 'growlProvider', function ($stateProvider, $locationProvider, $urlRouterProvider, NemPropertiesProvider, WalletConfig, growlProvider) {
         growlProvider.globalPosition('bottom-right');
         WalletConfig.load();
@@ -865,8 +948,10 @@ var Boot;
         });
     }]).run(['Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', '$state', 'NEM', function (Java, NemProperties, WalletConfig, $timeout, Log, $state, NEM) {
         request.get('http://bob.nem.ninja/version.txt', {}, function (err, res, version) {
-            NEM.version = version.match(/([\d]+\.[\d]+\.[\d]+)/)[1];
-            Log.add('Latest NEM version is ' + NEM.version, 'client');
+            var v = version.match(/([\d]+\.[\d]+\.[\d]+)-?([A-Z]+)/);
+            NEM.version = v[1];
+            NEM.beta = typeof v[2] !== 'undefined' && v[2] === 'BETA';
+            Log.add('Latest NEM version is ' + NEM.version + (NEM.beta ? ' (BETA)' : ''), 'client');
             Java.decide().catch(function (_err) {
                 var err = _err;
                 if (err['code'] === 'ENOENT') {
@@ -875,8 +960,11 @@ var Boot;
                 else {
                     Log.add(err.message, 'java');
                 }
-            }).then(function () {
                 return Java.downloadAndInstall();
+            }).catch(function (_err) {
+                Log.add(_err.message, 'java');
+            }).then(function () {
+                console.log('done');
             });
         });
         process.on('exit', function () {

@@ -3,13 +3,14 @@ NEM Wallet
 
 Hassle-free portable NEM Wallet for Linux, MacOS and Windows
 
-## Dev Install
+## Start
 
 ```
-npm install nem-wallet
-cd node_modules/nem-wallet
+git clone https://github.com/pocesar/node-nem-wallet.git
+cd node-nem-wallet
 npm install
-grunt
+npm run postinstall
+npm run start
 ```
 
 <!-- ## Generate executables -->

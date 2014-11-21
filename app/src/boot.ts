@@ -14,12 +14,20 @@ module Boot {
 var
     win: gui.Window = gui.Window.get(),
     cwd: string = process.execPath.indexOf('node_modules') !== -1 ? process.cwd() : path.join(path.dirname(process.execPath), '.'),
-    fs: any = Promise.promisifyAll(require('fs'));
+    fs: any = Promise.promisifyAll(require('graceful-fs'));
+
+
+interface IJavaResource {
+    filename: string;
+    url: string;
+    batch?: string;
+}
 
 interface IJavaVersion {
-    arm: string;
-    ia32: string;
-    x64: string;
+    [index: string]: IJavaResource;
+    arm: IJavaResource;
+    ia32: IJavaResource;
+    x64: IJavaResource;
 }
 
 interface IJavaVersions {
@@ -238,6 +246,13 @@ module Controllers {
             'forums': {
                 url: 'https://forum.nemcoin.com/index.php?type=rss;action=.xml',
                 baseurl: 'https://forum.nemcoin.com/index.php',
+                loading: true,
+                limit: -1,
+                data: []
+            },
+            'medium': {
+                url: 'https://medium.com/feed/@xtester',
+                baseurl: 'https://medium.com/@xtester',
                 loading: true,
                 limit: -1,
                 data: []
@@ -500,7 +515,7 @@ module Providers {
 
     export class WalletConfig {
         tray: boolean = false;
-        beta: boolean = false;
+        beta: boolean = true;
         testnet: boolean = false;
         folder: string = path.join(cwd, 'nem');
         loaded: boolean = false;
@@ -763,47 +778,115 @@ module Services {
 
         static javaVersions: IJavaVersions = {
             'darwin': {
-                'arm': '',
-                'ia32': '',
-                'x64': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97361'
+                'arm': {
+                    url: '',
+                    filename: ''
+                },
+                'ia32': {
+                    url: '',
+                    filename: ''
+                },
+                'x64': {
+                    url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97361',
+                    filename: 'jre.dmg',
+                    batch: 'install-java.sh'
+                }
             },
             'freebsd': {
-                'arm': '',
-                'ia32': '',
-                'x64': ''
+                'arm': {
+                    url: '',
+                    filename: ''
+                },
+                'ia32': {
+                    url: '',
+                    filename: ''
+                },
+                'x64': {
+                    url: '',
+                    filename: ''
+                }
             },
             'linux': {
-                'arm': '',
-                'ia32': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97358',
-                'x64': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97360'
+                'arm': {
+                    url: '',
+                    filename: ''
+                },
+                'ia32': {
+                    url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97358',
+                    filename: 'jre.tar.gz',
+                    batch: 'install-java.sh'
+                },
+                'x64': {
+                    url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97360',
+                    filename: 'jre.tar.gz',
+                    batch: 'install-java.sh'
+                }
             },
             'sunos': {
-                'arm': '',
-                'ia32': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97363',
-                'x64': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97364'
+                'arm': {
+                    url: '',
+                    filename: ''
+                },
+                'ia32': {
+                    url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97363',
+                    filename: 'jre.tar.gz',
+                    batch: 'install-java.sh'
+                },
+                'x64': {
+                    url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97364',
+                    filename: 'jre.tar.gz',
+                    batch: 'install-java.sh'
+                }
             },
             'win32': {
-                'arm': '',
-                'ia32': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98426',
-                'x64': 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98428'
+                'arm': {
+                    url: '',
+                    filename: ''
+                },
+                'ia32': {
+                    url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98426',
+                    filename: 'jre.exe',
+                    batch: 'install-java.cmd'
+                },
+                'x64': {
+                    url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98428',
+                    filename: 'jre.exe',
+                    batch: 'install-java.cmd'
+                }
             }
         };
+        public javaBin: string = 'java';
+
 
         exec(command: string[] = []) {
-            return child_process.spawn(path.join(cwd, 'jre', 'bin', 'java'), command, {
+            return child_process.spawn(this.javaBin, command, {
                 env: process.env
             });
         }
 
         _progress() {
-            return () => {
+            return (res: any, url: string, cb: Function) => {
                 console.log(arguments);
+                if (res.headers['content-length']) {
+                    var
+                        total = parseInt(res.headers['content-length'], 10),
+                        progress = 0;
+
+                    res.on('data', function (data: any) {
+                        progress += data.length;
+                        this.downloaded = (progress / total) * 100;
+                    });
+
+                    res.on('end', function () {
+                        cb();
+                    });
+                }
             };
         }
 
         downloadAndInstall(): Promise<any> {
             return new Promise<any>((resolve: any, reject: any) => {
-                var url: string;
+                var url: IJavaResource;
                 if (!(url = this.getUrl())) {
                     return reject(new Error('Could not find suitable OS'));
                 }
@@ -811,40 +894,63 @@ module Services {
                 this.Log.add('Beginning Java download', 'java');
 
                 var
-                    Download = require('download'),
-                    dl = new Download({  })
-                    .dest(path.join(cwd, 'temp'))
-                    .get(url)
-                    .use(this._progress());
+                    progress = require('request-progress'),
+                    filename = path.join(cwd, 'temp', url.filename),
+                    file = fs.createWriteStream(filename),
+                    dl = progress(request.get(
+                        url.url
+                    ))
+                    .on('progress', (state: any) => {
+                        this.downloaded = state.percent;
+                    })
+                    .on('error', (err: Error) => {
+                        reject(err);
+                    })
+                    .pipe(file)
+                    .on('error', (err: Error) => {
+                        reject(err);
+                    })
+                    .on('close', () => {
+                        var
+                            _path: string = path.join(cwd, 'jre'),
+                            batch: string = path.join(cwd, 'temp', url.batch);
 
-                dl.run((err: Error, files: string[], stream: NodeJS.ReadableStream) => {
-                    if (err) {
-                        return reject(err);
-                    }
-                    var _path: string = path.join(cwd, 'jre');
+                        fs.writeFileSync(batch, [filename, '/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _path + '"', '/L java.log'].join(' '));
 
-                    child_process.execFile(files[0], ['/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _path + '"', '/L java.log'], {
-                        cwd: process.cwd(),
-                        env: process.env
-                    }, () => {
-                        this.version.semver = this.latest.split('_')[0];
-                        this.version.full = this.latest;
-                        resolve(_path);
+                        try {
+                            var e: any = child_process['execFile'];
+                            var child = e(batch, {
+                                env: process.env
+                            });
+
+                            child.on('error', (err: any) => {
+                                throw err;
+                            });
+
+                            child.on('exit', () => {
+                                this.version.semver = this.latest.split('_')[0];
+                                this.version.full = this.latest;
+                                this.javaBin = path.join(_path, 'bin', 'java');
+                                resolve();
+                            });
+                        } catch (e) {
+                            reject(new Error('Java couldn\'t be installed automatically, execute the file "install-java" in the temp directory'));
+                        }
                     });
-                });
+
             });
         }
 
-        getUrl(): any {
-            var obj: any;
+        getUrl(): IJavaResource {
+            var obj: IJavaVersion;
 
             if (typeof (obj = Java.javaVersions[process.platform]) === 'object'){
-                if (typeof obj[process.arch] === 'string' && !_.isEmpty(obj[process.arch])) {
+                if (typeof obj[process.arch] !== 'undefined' && obj[process.arch].url && obj[process.arch].filename) {
                     return obj[process.arch];
                 }
             }
 
-            return false;
+            return null;
         }
 
         _parseVersion(version: string) {
@@ -870,23 +976,33 @@ module Services {
                     this.Log.add('Latest Java version ' + version, 'java');
                     this.latest = version;
 
-                    var child: child_process.ChildProcess = this.exec(['-version']);
+                    var
+                        latest: string = this.latest.split('_')[0],
+                        revision: string = this.latest.split('_')[1],
+                        child: child_process.ChildProcess = this.exec(['-version']);
 
                     child.on('error', (err: Error) => {
                         reject(err);
                     });
 
                     child.stderr.on('data', (result: Buffer) => {
-                        var version = result.toString().match(Java.versionRegex);
+                        var
+                            version = result.toString().match(Java.versionRegex),
+                            localrevision: string;
 
                         if (version && typeof version[2] === 'string') {
-                            this.version.semver = version[2];
-                            this.version.full = version[1];
+                            try {
+                                this.version.semver = version[2];
+                                this.version.full = version[1];
+                                localrevision = version[1].split('_')[1];
 
-                            if (semver.gte(version[1], this.latest)) {
-                                resolve(true);
-                            } else {
-                                reject(new Error('Java is outdated'));
+                                if (semver.gte(version[2], latest, true) && ~~localrevision >= ~~revision) {
+                                    resolve();
+                                } else {
+                                    reject(new Error('Java is outdated'));
+                                }
+                            } catch (e) {
+                                reject(new Error('Could not determine Java version, install manually from ' + this.getUrl().url));
                             }
                         } else {
                             reject(new Error('No Java version found'));
@@ -914,7 +1030,8 @@ angular
     'angular-growl'
 ])
 .value('NEM', {
-    version: '0.0.0'
+    version: '0.0.0',
+    beta: false
 })
 .controller('Global', Controllers.Global)
 .provider('WalletConfig', Providers.WalletConfig)
@@ -1040,9 +1157,11 @@ angular
     ) => {
 
     request.get('http://bob.nem.ninja/version.txt', {}, (err: Error, res: any, version: string) => {
-        NEM.version = version.match(/([\d]+\.[\d]+\.[\d]+)/)[1];
+        var v = version.match(/([\d]+\.[\d]+\.[\d]+)-?([A-Z]+)/);
+        NEM.version = v[1];
+        NEM.beta = typeof v[2] !== 'undefined' && v[2] === 'BETA';
 
-        Log.add('Latest NEM version is ' + NEM.version, 'client');
+        Log.add('Latest NEM version is ' + NEM.version + (NEM.beta ? ' (BETA)' : ''), 'client');
 
         Java
         .decide()
@@ -1053,9 +1172,13 @@ angular
             } else {
                 Log.add(err.message, 'java');
             }
+            return Java.downloadAndInstall();
+        })
+        .catch(function(_err: Error){
+            Log.add(_err.message, 'java');
         })
         .then(function(){
-            return Java.downloadAndInstall();
+            console.log('done');
         })
         /*.catch((err: Error) => {
             Log.add(err.message, 'java');
