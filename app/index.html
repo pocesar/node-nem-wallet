@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.css" />
+    <link rel="stylesheet" href="bower_components/bootstrap-material-design/dist/css/material-wfont.css" />
+    <link rel="stylesheet" href="bower_components/bootstrap-material-design/dist/css/ripples.css" />
+    <link rel="stylesheet" href="bower_components/bootstrap-sweetalert/lib/sweet-alert.css" />
+    <link rel="stylesheet" href="bower_components/font-awesome/css/font-awesome.css" />
+    <link rel="stylesheet" href="bower_components/angular-growl-v2/build/angular-growl.css" />
+    <link rel="stylesheet" href="img/style.css" />
+    <title>NEM Wallet v1.0.0</title>
+</head>
+<body ng-app="app">
+    <div ng-controller="Global as global" class="wrap">
+        <div ui-view></div>
+        <div ui-view="wallet" ng-show="global.$state.includes('ncc')" class="ncc"></div>
+
+        <nav class="navbar navbar-default navbar-fixed-bottom" role="navigation">
+            <div class="container-fluid">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#collapse-menu">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="mdi-navigation-menu"></span>
+                </button>
+                <div class="collapse navbar-collapse navbar-responsive-collapse" id="collapse-menu">
+                    <ul class="nav navbar-nav main-nav-bar">
+                        <li ui-sref="ncc" ng-show="global.loaded()" ui-sref-active="active" class=""><a><i class="mdi-action-account-balance-wallet"></i>Wallet</a></li>
+                        <li ui-sref="log" ui-sref-active="active" class=""><a><i class="mdi-action-assignment"></i>Log&nbsp;&nbsp;<span ng-bind="global.Log.count()" class="badge"></span></a></li>
+                        <li ui-sref="config" ui-sref-active="active" class=""><a><i class="mdi-action-settings"></i>Config</a></li>
+                        <li ui-sref="news" ui-sref-active="active" class=""><a><i class="mdi-social-public"></i>News</a></li>
+                        <li ui-sref="backup" ng-show="global.loaded()" ui-sref-active="active" class=""><a><i class="mdi-content-save"></i>Backup</a></li>
+                        <li ui-sref="market" ui-sref-active="active" class=""><a><i class="mdi-action-trending-up"></i>Market</a></li>
+                        <li ui-sref="about" ui-sref-active="active" class=""><a><i class="mdi-action-info"></i>About</a></li>
+                        <li ui-sref="services" ng-show="global.loaded()" ui-sref-active="active" class=""><a><i class="mdi-hardware-memory"></i>Services</a></li>
+                        <li><a ng-click="global.shutdown()"><i class="mdi-action-settings-power"></i>Quit</a></li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </div>
+
+    <div growl></div>
+
+    <script src="bower_components/jquery/dist/jquery.js"></script>
+    <script src="bower_components/Chart.js/Chart.js"></script>
+    <script src="bower_components/angular/angular.js"></script>
+    <script src="bower_components/angular-animate/angular-animate.js"></script>
+    <script src="bower_components/angular-sanitize/angular-sanitize.js"></script>
+    <script src="bower_components/angular-ui-router/release/angular-ui-router.js"></script>
+    <script src="bower_components/angular-utils-pagination/dirPagination.js"></script>
+    <script src="bower_components/tc-angular-chartjs/dist/tc-angular-chartjs.js"></script>
+    <script src="bower_components/ui-router-extras/release/ct-ui-router-extras.js"></script>
+    <script src="bower_components/bootstrap/dist/js/bootstrap.js"></script>
+    <script src="bower_components/angular-growl-v2/build/angular-growl.js"></script>
+    <script src="bower_components/bootstrap-sweetalert/lib/sweet-alert.js"></script>
+    <script src="bower_components/bootstrap-material-design/dist/js/material.js"></script>
+    <script src="bower_components/bootstrap-material-design/dist/js/ripples.js"></script>
+    <script id="lang"></script>
+    <script src="js/lang.js"></script>
+    <script src="js/boot.js"></script>
+</body>
+</html>

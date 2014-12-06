@@ -1,29 +1,28 @@
 <div class="container pad-top">
-    <div class="panel panel-default">
+    <div class="panel panel-success">
         <div class="panel-heading">
             <div class="panel-title">Logs {{ log.labels[log._filterBy] }}</div>
         </div>
         <div class="panel-body clearfix">
             <div class="row">
-                <div class="col-sm-10">
+                <div class="col-sm-9">
                     <dir-pagination-controls template-url="bower_components/angular-utils-pagination/dirPagination.tpl.html"></dir-pagination-controls>
                 </div>
-                <div class="col-sm-1">
+                <div class="col-sm-3">
                     <div class="dropdown pull-right">
                         <button class="btn btn-default dropdown-toggle" type="button" id="filterMenu" data-toggle="dropdown">
                             Filter <span class="caret"></span>
                         </button>
                         <ul class="dropdown-menu" role="menu" aria-labelledby="filterMenu">
-                            <li role="presentation"><a role="menuitem" ng-click="log.filterBy('none')" ><i class="fa fa-check" ng-show="log._filterBy=='none'"></i> {{ log.labels['none'] }}<span class="badge pull-right" ng-bind="log.by('none')"></span></a></li>
-                            <li role="presentation"><a role="menuitem" ng-click="log.filterBy('ncc')"><i class="fa fa-check" ng-show="log._filterBy=='ncc'"></i> {{ log.labels['ncc'] }}<span class="badge pull-right" ng-bind="log.by('ncc')"></span></a></li>
-                            <li role="presentation"><a role="menuitem" ng-click="log.filterBy('nis')"><i class="fa fa-check" ng-show="log._filterBy=='nis'"></i> {{ log.labels['nis'] }}<span class="badge pull-right" ng-bind="log.by('nis')"></span></a></li>
-                            <li role="presentation"><a role="menuitem" ng-click="log.filterBy('java')"><i class="fa fa-check" ng-show="log._filterBy=='java'"></i> {{ log.labels['java'] }}<span class="badge pull-right" ng-bind="log.by('java')"></span></a></li>
-                            <li role="presentation"><a role="menuitem" ng-click="log.filterBy('client')"><i class="fa fa-check" ng-show="log._filterBy=='client'"></i> {{ log.labels['client'] }}<span class="badge pull-right" ng-bind="log.by('client')"></span></a></li>
+                            <li role="presentation"><a role="menuitem" ng-click="log.filterBy('none')" ><i class="mdi-action-done" ng-show="log._filterBy=='none'"></i> {{ log.labels['none'] }}<span class="badge pull-right" ng-bind="log.by('none')"></span></a></li>
+                            <li role="presentation"><a role="menuitem" ng-click="log.filterBy('ncc')"><i class="mdi-action-done" ng-show="log._filterBy=='ncc'"></i> {{ log.labels['ncc'] }}<span class="badge pull-right" ng-bind="log.by('ncc')"></span></a></li>
+                            <li role="presentation"><a role="menuitem" ng-click="log.filterBy('nis')"><i class="mdi-action-done" ng-show="log._filterBy=='nis'"></i> {{ log.labels['nis'] }}<span class="badge pull-right" ng-bind="log.by('nis')"></span></a></li>
+                            <li role="presentation"><a role="menuitem" ng-click="log.filterBy('java')"><i class="mdi-action-done" ng-show="log._filterBy=='java'"></i> {{ log.labels['java'] }}<span class="badge pull-right" ng-bind="log.by('java')"></span></a></li>
+                            <li role="presentation"><a role="menuitem" ng-click="log.filterBy('client')"><i class="mdi-action-done" ng-show="log._filterBy=='client'"></i> {{ log.labels['client'] }}<span class="badge pull-right" ng-bind="log.by('client')"></span></a></li>
                         </ul>
                     </div>
-                </div>
-                <div class="col-sm-1">
-                    <div class="pull-right btn btn-primary" ng-click="log.openSaveAs()">Export</div>
+
+                    <div class="pull-right btn btn-default" ng-click="log.openSaveAs()">Export</div>
                     <input style="display:none;" id="fileDialog" nwsaveas type="file" value="log.txt" />
                 </div>
             </div>

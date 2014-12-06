@@ -31,7 +31,10 @@
     "angular-growl-v2": "0.x.x",
     "angular-animate": "1.x.x",
     "angular-translate": "2.x.x",
-    "tc-angular-chartjs": "1.x.x"
+    "tc-angular-chartjs": "1.x.x",
+    "bootstrap-sweetalert": "0.x.x",
+    "bootstrap-sass-official": "3.x.x",
+    "bootstrap-material-design": "0.x.x"
   },
   "resolutions": {
     "angular": "1.3.x"

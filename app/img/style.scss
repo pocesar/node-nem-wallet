@@ -48,13 +48,22 @@ $font: 'Source Sans Pro';
     height: 100%;
 }
 
+[class^="mdi"] {
+    font-size: 34pt;
+}
 a, input, textarea {
     &, &:active, &:focus {
         outline: none;
     }
 }
 
-$nav-bar-height: 82px;
+$nav-bar-height: 105px;
+
+.dropdown-menu {
+    [class^="mdi"] {
+        font-size: inherit;
+    }
+}
 
 body {
     margin: 0;
@@ -64,6 +73,7 @@ body {
     min-height: 100% !important;
     font-family: $font;
     font-size: 14px;
+    color: #333;
     @extend %extend_1;
 }
 
@@ -199,12 +209,12 @@ p {
     > li > a {
         text-align: center;
     }
-    .fa {
-        font-size: 32px;
+    i[class^="mdi"] {
+        font-size: 34pt;
         vertical-align: top;
         display: block;
         text-align: center;
-        color: $darkgray;
+        color: $orange;
     }
 }
 

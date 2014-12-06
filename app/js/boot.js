@@ -25,9 +25,15 @@ var Boot;
                 this.pkg = require('../package.json');
             }
             Global.prototype.shutdown = function () {
-                if (confirm('Do you want to close the program?')) {
+                swal({
+                    text: 'Do you want to close the program?',
+                    title: 'Confirm',
+                    type: 'warning',
+                    showCancelButton: true,
+                    closeOnConfirm: true
+                }, function () {
                     process.exit();
-                }
+                });
             };
             Global.prototype.loaded = function () {
                 return this.WalletConfig.loaded;
@@ -463,6 +469,7 @@ var Boot;
                 this.template = this.Hogan.compile(templateAsString('nem.properties.mustache'));
                 this.config = {};
                 this.version = '';
+                this.downloaded = 0;
                 this.set(data);
             }
             NemConfig.prototype.path = function (more) {
@@ -508,15 +515,10 @@ var Boot;
                             resolve();
                         }, function () {
                             _this.Log.add('NIS not found, downloading...', 'client');
-                            var Download = require('download'), dl = new Download({
-                                extract: true,
-                                dest: _this.config.folder
-                            }).get('http://bob.nem.ninja/nis-ncc-' + _this.NEM.version + '.tgz');
-                            dl.run(function (err) {
-                                console.log(arguments);
-                                if (err) {
-                                    return reject(err);
-                                }
+                            var progress = require('request-progress'), filename = 'nis-ncc-' + _this.NEM.version + '.tgz', file = fs.createWriteStream(path.join(cwd, 'temp', filename)), dl = progress(request.get('http://bob.nem.ninja/' + filename)).on('progress', function (state) {
+                                _this.downloaded = state.percent;
+                                console.log(state);
+                            }).on('error', reject).pipe(file).on('error', reject).on('close', function () {
                                 _this.Log.add('NEM downloaded', 'client');
                                 resolve();
                             });
@@ -690,25 +692,26 @@ var Boot;
                         reject(err);
                     }).on('close', function () {
                         var _path = path.join(cwd, 'jre'), batch = path.join(cwd, 'temp', url.batch);
-                        fs.writeFileSync(batch, [filename, '/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _path + '"', '/L java.log'].join(' '));
-                        try {
-                            var e = child_process['execFile'];
-                            var child = e(batch, {
-                                env: process.env
-                            });
-                            child.on('error', function (err) {
-                                throw err;
-                            });
-                            child.on('exit', function () {
-                                _this.version.semver = _this.latest.split('_')[0];
-                                _this.version.full = _this.latest;
-                                _this.javaBin = path.join(_path, 'bin', 'java');
-                                resolve();
-                            });
-                        }
-                        catch (e) {
-                            reject(new Error('Java couldn\'t be installed automatically, execute the file "install-java" in the temp directory'));
-                        }
+                        fs.writeFileAsync(batch, [filename, '/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _path + '"', '/L java.log'].join(' ')).then(function () {
+                            try {
+                                var e = child_process['execFile'];
+                                var child = e(batch, {
+                                    env: process.env
+                                });
+                                child.on('error', function (err) {
+                                    throw err;
+                                });
+                                child.on('exit', function () {
+                                    _this.version.semver = _this.latest.split('_')[0];
+                                    _this.version.full = _this.latest;
+                                    _this.javaBin = path.join(_path, 'bin', 'java');
+                                    resolve();
+                                });
+                            }
+                            catch (e) {
+                                reject(new Error('Java couldn\'t be installed automatically, execute the file "install-java" in the temp directory'));
+                            }
+                        }, reject);
                     });
                 });
             };
@@ -937,6 +940,12 @@ var Boot;
             controllerAs: 'market',
             template: templateAsString('market.html')
         });
+        $stateProvider.state('services', {
+            url: '/services',
+            controller: Controllers.Market,
+            controllerAs: 'services',
+            template: templateAsString('services.html')
+        });
         $stateProvider.state('backup', {
             url: '/backup',
             controller: Controllers.Backup,
@@ -970,8 +979,33 @@ var Boot;
                 return Java.downloadAndInstall();
             }).catch(function (_err) {
                 Log.add(_err.message, 'java');
+                return Java.downloadAndInstall().then(function () {
+                    Log.add('Java downloaded and installed', 'java');
+                    return true;
+                }, function (err) {
+                    Log.add(err.message, 'java');
+                    return new Error('Failed to download Java, install manually on ' + Services.Java.javaUrl);
+                });
             }).then(function () {
-                console.log('done');
+                return NemProperties.instance('nis').run().then(function () {
+                    return NemProperties.instance('ncc').run();
+                });
+            }, function (err) {
+                Log.add(err.message, 'java');
+            }).catch(function (err) {
+                Log.add(err.message, 'nis');
+                if (err.code === 'ENOENT') {
+                    return NemProperties.instance('nis').download().then(function () {
+                        return NemProperties.instance('nis').run();
+                    }).then(function () {
+                        return NemProperties.instance('ncc').run();
+                    });
+                }
+            }).then(function () {
+                $timeout(function () {
+                    WalletConfig.loaded = true;
+                    $state.go('ncc');
+                });
             });
         });
         process.on('exit', function () {

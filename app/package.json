@@ -17,7 +17,6 @@
     "hogan.js": "3.x.x",
     "lodash": "2.x",
     "mkdirp": "0.x.x",
-    "ncp": "0.x.x",
     "request": "2.x.x",
     "request-progress": "^0.3.1",
     "rimraf": "2.x.x",

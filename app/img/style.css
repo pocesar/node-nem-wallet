@@ -21,8 +21,14 @@ body, html {
   position: relative;
   height: 100%; }
 
+[class^="mdi"] {
+  font-size: 34pt; }
+
 a, a:active, a:focus, input, input:active, input:focus, textarea, textarea:active, textarea:focus {
   outline: none; }
+
+.dropdown-menu [class^="mdi"] {
+  font-size: inherit; }
 
 body {
   margin: 0;
@@ -31,7 +37,8 @@ body {
   background-size: cover;
   min-height: 100% !important;
   font-family: 'Source Sans Pro';
-  font-size: 14px; }
+  font-size: 14px;
+  color: #333; }
 
 a {
   color: #e1a92b; }
@@ -48,8 +55,8 @@ a {
 
 [ui-view]:not(.ncc) {
   position: relative;
-  max-height: calc(100% - 82px);
-  min-height: calc(100% - 82px);
+  max-height: calc(100% - 105px);
+  min-height: calc(100% - 105px);
   overflow-y: auto; }
 
 .news-body {
@@ -68,7 +75,7 @@ a {
 
 .chart {
   position: relative;
-  height: calc(550px - 82px);
+  height: calc(550px - 105px);
   width: 100%; }
   .chart canvas {
     position: absolute;
@@ -80,7 +87,7 @@ a {
 .ncc-iframe {
   border: 0;
   width: 100%;
-  min-height: calc(100% - 82px);
+  min-height: calc(100% - 105px);
   min-width: 100%; }
 
 .pad-top {
@@ -134,12 +141,12 @@ p {
 
 .main-nav-bar > li > a {
   text-align: center; }
-.main-nav-bar .fa {
-  font-size: 32px;
+.main-nav-bar i[class^="mdi"] {
+  font-size: 34pt;
   vertical-align: top;
   display: block;
   text-align: center;
-  color: #444444; }
+  color: #e1a92b; }
 
 .btn {
   font-family: 'Source Sans Pro';

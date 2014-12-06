@@ -465,7 +465,7 @@ declare module "zlib" {
 }
 
 declare module "os" {
-    export function tmpDir(): string;
+    export function tmpdir(): string;
     export function hostname(): string;
     export function type(): string;
     export function platform(): string;
@@ -528,8 +528,8 @@ declare module "https" {
     };
     export interface Server extends tls.Server { }
     export function createServer(options: ServerOptions, requestListener?: Function): Server;
-    export function request(options: RequestOptions, callback?: (res: events.EventEmitter) =>void ): http.ClientRequest;
-    export function get(options: RequestOptions, callback?: (res: events.EventEmitter) =>void ): http.ClientRequest;
+    export function request(options: RequestOptions, callback?: (res: http.ClientResponse) =>void ): http.ClientRequest;
+    export function get(options: RequestOptions, callback?: (res: http.ClientResponse) =>void ): http.ClientRequest;
     export var globalAgent: Agent;
 }
 
@@ -631,7 +631,11 @@ declare module "child_process" {
         killSignal?: string;
     }, callback: (error: Error, stdout: Buffer, stderr: Buffer) =>void ): ChildProcess;
     export function exec(command: string, callback: (error: Error, stdout: Buffer, stderr: Buffer) =>void ): ChildProcess;
-    export function execFile(file: string, args: string[], options: {
+    export function execFile(file: string,
+        callback?: (error: Error, stdout: Buffer, stderr: Buffer) =>void ): ChildProcess;
+    export function execFile(file: string, args?: string[],
+        callback?: (error: Error, stdout: Buffer, stderr: Buffer) =>void ): ChildProcess;
+    export function execFile(file: string, args?: string[], options?: {
         cwd?: string;
         stdio?: any;
         customFds?: any;
@@ -640,7 +644,7 @@ declare module "child_process" {
         timeout?: number;
         maxBuffer?: string;
         killSignal?: string;
-    }, callback: (error: Error, stdout: Buffer, stderr: Buffer) =>void ): ChildProcess;
+    }, callback?: (error: Error, stdout: Buffer, stderr: Buffer) =>void ): ChildProcess;
     export function fork(modulePath: string, args?: string[], options?: {
         cwd?: string;
         env?: any;

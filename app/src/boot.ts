@@ -76,9 +76,15 @@ module Controllers {
         pkg: any = require('../package.json');
 
         shutdown() {
-            if (confirm('Do you want to close the program?')) {
+            swal({
+                text: 'Do you want to close the program?',
+                title: 'Confirm',
+                type: 'warning',
+                showCancelButton: true,
+                closeOnConfirm: true
+            }, () => {
                 process.exit();
-            }
+            });
         }
 
         loaded() {
@@ -565,6 +571,7 @@ module Providers {
         public Log: Services.Log;
         public NEM: any;
         public version: string = '';
+        public downloaded: number = 0;
         private child: child_process.ChildProcess;
 
         path(more: string[] = []) {
@@ -614,20 +621,24 @@ module Providers {
                         this.Log.add('NIS not found, downloading...', 'client');
 
                         var
-                            Download = require('download'),
-                            dl = new Download({
-                                extract: true,
-                                dest: this.config.folder
-                            }).get('http://bob.nem.ninja/nis-ncc-' + this.NEM.version + '.tgz');
-
-                        dl.run((err: any) => {
-                            console.log(arguments);
-                            if (err) {
-                                return reject(err);
-                            }
-                            this.Log.add('NEM downloaded', 'client');
-                            resolve();
-                        });
+                            progress = require('request-progress'),
+                            filename = 'nis-ncc-' + this.NEM.version + '.tgz',
+                            filePath = path.join(cwd, 'temp', filename),
+                            file = fs.createWriteStream(filePath),
+                            dl = progress(request.get(
+                                'http://bob.nem.ninja/' + filename
+                            ))
+                            .on('progress', (state: any) => {
+                                this.downloaded = state.percent;
+                            })
+                            .on('error', reject)
+                            .pipe(file)
+                            .on('error', reject)
+                            .on('close', () => {
+                                this.Log.add('NEM downloaded', 'client');
+                                resolve();
+                            })
+                            ;
                     });
                 }, reject);
             });
@@ -915,27 +926,27 @@ module Services {
                             _path: string = path.join(cwd, 'jre'),
                             batch: string = path.join(cwd, 'temp', url.batch);
 
-                        fs.writeFileSync(batch, [filename, '/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _path + '"', '/L java.log'].join(' '));
+                        fs.writeFileAsync(batch, [filename, '/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _path + '"', '/L java.log'].join(' ')).then(() => {
+                            try {
+                                var e: any = child_process['execFile'];
+                                var child = e(batch, {
+                                    env: process.env
+                                });
 
-                        try {
-                            var e: any = child_process['execFile'];
-                            var child = e(batch, {
-                                env: process.env
-                            });
+                                child.on('error', (err: any) => {
+                                    throw err;
+                                });
 
-                            child.on('error', (err: any) => {
-                                throw err;
-                            });
-
-                            child.on('exit', () => {
-                                this.version.semver = this.latest.split('_')[0];
-                                this.version.full = this.latest;
-                                this.javaBin = path.join(_path, 'bin', 'java');
-                                resolve();
-                            });
-                        } catch (e) {
-                            reject(new Error('Java couldn\'t be installed automatically, execute the file "install-java" in the temp directory'));
-                        }
+                                child.on('exit', () => {
+                                    this.version.semver = this.latest.split('_')[0];
+                                    this.version.full = this.latest;
+                                    this.javaBin = path.join(_path, 'bin', 'java');
+                                    resolve();
+                                });
+                            } catch (e) {
+                                reject(new Error('Java couldn\'t be installed automatically, execute the file "install-java" in the temp directory'));
+                            }
+                        }, reject);
                     });
 
             });
@@ -1128,6 +1139,13 @@ angular
         template: templateAsString('market.html')
     });
 
+    $stateProvider.state('services', {
+        url: '/services',
+        controller: Controllers.Market,
+        controllerAs: 'services',
+        template: templateAsString('services.html')
+    });
+
     $stateProvider.state('backup', {
         url: '/backup',
         controller: Controllers.Backup,
@@ -1174,16 +1192,10 @@ angular
             }
             return Java.downloadAndInstall();
         })
-        .catch(function(_err: Error){
+        .catch(function(_err: any){
             Log.add(_err.message, 'java');
-        })
-        .then(function(){
-            console.log('done');
-        })
-        /*.catch((err: Error) => {
-            Log.add(err.message, 'java');
 
-            return Java.downloadAndInstall().then((value: any) => {
+            return Java.downloadAndInstall().then(() => {
                 Log.add('Java downloaded and installed', 'java');
                 return true;
             }, (err: Error) => {
@@ -1191,14 +1203,16 @@ angular
                 return new Error('Failed to download Java, install manually on ' + Services.Java.javaUrl);
             });
         })
-        .catch((err: Error) => {
+        .then(() => {
+            return NemProperties.instance('nis').run().then(() => {
+                return NemProperties.instance('ncc').run();
+            });
+        }, (err: Error) => {
             Log.add(err.message, 'java');
         })
-        .then(() => NemProperties.instance('nis').run())
-        .then(() => {
-            return NemProperties.instance('ncc').run();
-        }, (err: any) => {
+        .catch((err: any) => {
             Log.add(err.message, 'nis');
+
             if (err.code === 'ENOENT') {
                 return NemProperties.instance('nis').download().then(() => {
                     return NemProperties.instance('nis').run();
@@ -1212,7 +1226,7 @@ angular
                 WalletConfig.loaded = true;
                 $state.go('ncc');
             });
-        })*/;
+        });
     });
 
     process.on('exit', () => {
