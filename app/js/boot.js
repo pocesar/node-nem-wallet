@@ -35,6 +35,7 @@ var Boot;
                 this.pkg = require('../package.json');
             }
             Global.prototype.shutdown = function () {
+                var _this = this;
                 swal({
                     text: 'Do you want to close the program?',
                     title: 'Confirm',
@@ -42,7 +43,7 @@ var Boot;
                     showCancelButton: true,
                     closeOnConfirm: true
                 }, function () {
-                    process.exit();
+                    _this.WalletConfig.exit();
                 });
             };
             Global.prototype.loaded = function () {
@@ -412,7 +413,7 @@ var Boot;
         var NCC = (function () {
             function NCC(NEM, $sce) {
                 var config = NEM.instance('ncc');
-                this.url = $sce.trustAsResourceUrl(config.url());
+                this.url = $sce.trustAsResourceUrl(config.url('homePath'));
             }
             NCC.$inject = ['NemProperties', '$sce'];
             return NCC;
@@ -509,6 +510,7 @@ var Boot;
                 this.folder = path.join(cwd, 'nem');
                 this.loaded = false;
                 this.updating = false;
+                this.exitCallback = angular.noop;
             }
             WalletConfig.prototype._internalState = function (name) {
                 return !_.contains(['loaded', 'updating'], name);
@@ -517,6 +519,9 @@ var Boot;
                 var self = this;
                 localStorage.setItem('wallet', JSON.stringify(_.filter(self, this._internalState, this)));
                 return this;
+            };
+            WalletConfig.prototype.exit = function () {
+                this.exitCallback();
             };
             WalletConfig.prototype.load = function () {
                 var _this = this;
@@ -568,15 +573,27 @@ var Boot;
                 return this;
             };
             NemConfig.prototype.url = function (append) {
+                var _this = this;
                 if (append === void 0) { append = ''; }
-                return this.config.protocol + '://' + this.config.host + ':' + this.config[this.config.protocol + 'Port'] + (this.config[append] ? this.config[append] : '');
+                if (_.isArray(append)) {
+                    append = _.map(append, function (a) {
+                        return _this.config[a];
+                    }).filter(function (a) { return a; }).join('/');
+                }
+                else if (this.config[append]) {
+                    append = this.config[append];
+                }
+                else {
+                    append = '';
+                }
+                return this.config.protocol + '://' + this.config.host + ':' + this.config[this.config.protocol + 'Port'] + append;
             };
             NemConfig.prototype.kill = function (signal) {
                 var _this = this;
                 if (signal === void 0) { signal = 'SIGTERM'; }
                 return new Promise(function (resolve, reject) {
                     if (_this.child) {
-                        request.get(_this.url('shutdownPath'), {
+                        request.get(_this.url(['apiContext', 'shutdownPath']), {
                             timeout: 10
                         }, function () {
                             _this.Log.add('Process exited', _this.name);
@@ -637,12 +654,18 @@ var Boot;
                         env: process.env,
                         detached: true
                     });
+                    _this.Log.add('Starting ' + _this.config.shortServerName, 'client');
+                    var addFiltered = function (str) {
+                        if (!/(exiting|entering|Mapped|INDIRECT)/.test(str) || /(WARNING|ERROR|FATAL|SEVERE)/.test(str)) {
+                            _this.Log.add(str, _this.name);
+                        }
+                    };
                     _this.child.stderr.on('data', function (data) {
                         if (!data.length) {
                             return;
                         }
                         var str = data.toString();
-                        _this.Log.add(str, _this.name);
+                        addFiltered(str);
                         if (!_this.version) {
                             var matches;
                             if ((matches = str.match(/version <([^\>]+?)>/)) && matches[1]) {
@@ -654,10 +677,7 @@ var Boot;
                         }
                     });
                     _this.child.stdout.on('data', function (data) {
-                        var str = data.toString();
-                        if (!/(exiting|entering|Mapped)/.test(str) || /(WARNING|ERROR|FATAL)/.test(str)) {
-                            _this.Log.add(str, _this.name);
-                        }
+                        addFiltered(data.toString());
                     });
                     _this.child.on('close', function (errCode) {
                         if (errCode !== 0) {
@@ -1110,6 +1130,8 @@ var Boot;
             httpsPort: 7891,
             useDosFilter: true,
             nodeLimit: 20,
+            webContext: '',
+            apiContext: '',
             bootWithoutAck: false,
             useBinaryTransport: true,
             useNetworkTime: true,
@@ -1217,6 +1239,7 @@ var Boot;
                 process.exit();
             });
         }
+        WalletConfig.exitCallback = killAll;
         process.on('exit', killAll).on('SIGTERM', function () {
             NemProperties.killAll().then(killAll);
         }).on('SIGINT', function () {

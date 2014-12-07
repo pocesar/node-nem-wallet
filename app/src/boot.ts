@@ -101,7 +101,7 @@ module Controllers {
                 showCancelButton: true,
                 closeOnConfirm: true
             }, () => {
-                gui.App.quit();
+                this.WalletConfig.exit();
             });
         }
 
@@ -512,7 +512,7 @@ module Controllers {
 
         constructor(NEM: Providers.INemConfigInstance, $sce: ng.ISCEService) {
             var config: Providers.NemConfig = NEM.instance('ncc');
-            this.url = $sce.trustAsResourceUrl(config.url());
+            this.url = $sce.trustAsResourceUrl(config.url('homePath'));
         }
     }
 
@@ -614,6 +614,7 @@ module Providers {
         folder: string = path.join(cwd, 'nem');
         loaded: boolean = false;
         updating: boolean = false;
+        exitCallback: Function = angular.noop;
 
         _internalState(name: string) {
             return !_.contains(['loaded','updating'], name);
@@ -623,6 +624,10 @@ module Providers {
             var self: any = this;
             localStorage.setItem('wallet', JSON.stringify(_.filter(self, this._internalState, this)));
             return this;
+        }
+
+        exit() {
+            this.exitCallback();
         }
 
         load() {
@@ -682,17 +687,29 @@ module Providers {
             return this;
         }
 
-        url(append: string = '') {
+        url(append: string[]): string;
+        url(append: string): string;
+        url(append: any = ''): string {
+            if (_.isArray(append)) {
+                append = _.map<string, string>(append, (a) => {
+                    return this.config[a];
+                }).filter((a: any) => a).join('/');
+            } else if (this.config[append]) {
+                append = this.config[append];
+            } else {
+                append = '';
+            }
+
             return this.config.protocol + '://' +
                    this.config.host + ':' +
                    this.config[this.config.protocol + 'Port'] +
-                   (this.config[append] ? this.config[append] : '');
+                   append;
         }
 
         kill(signal: string = 'SIGTERM'): Promise<boolean> {
             return new Promise<boolean>((resolve: any, reject: any) => {
                 if (this.child) {
-                    request.get(this.url('shutdownPath'), {
+                    request.get(this.url(['apiContext', 'shutdownPath']), {
                         timeout: 10
                     }, () => {
                         this.Log.add('Process exited', this.name);
@@ -759,6 +776,8 @@ module Providers {
                     env: process.env,
                     detached: true
                 });
+
+                this.Log.add('Starting ' + this.config.shortServerName, 'client');
 
                 var addFiltered: Function = (str: string) => {
                     if (!/(exiting|entering|Mapped|INDIRECT)/.test(str) || /(WARNING|ERROR|FATAL|SEVERE)/.test(str)) {
@@ -1325,6 +1344,8 @@ angular
         httpsPort: 7891,
         useDosFilter: true,
         nodeLimit: 20,
+        webContext: '',
+        apiContext: '',
         bootWithoutAck: false,
         useBinaryTransport: true,
         useNetworkTime: true,
@@ -1423,7 +1444,7 @@ angular
 .run(['Java', 'NemProperties', 'WalletConfig', '$timeout', 'Log', '$state', 'NEM', (
         Java: Services.Java,
         NemProperties: Providers.INemConfigInstance,
-        WalletConfig: any,
+        WalletConfig: Providers.WalletConfig,
         $timeout: ng.ITimeoutService,
         Log: Services.Log,
         $state: ng.ui.IStateService,
@@ -1459,6 +1480,8 @@ angular
             process.exit();
         });
     }
+
+    WalletConfig.exitCallback = killAll;
 
     process
     .on('exit', killAll)

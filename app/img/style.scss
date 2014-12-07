@@ -123,7 +123,7 @@ a {
 
 .chart {
     position: relative;
-    height: calc(550px - #{$nav-bar-height});
+    min-height: 550px;
     width: 100%;
 
     .chart-wrap {

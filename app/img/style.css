@@ -76,7 +76,7 @@ a {
 
 .chart {
   position: relative;
-  height: calc(550px - 105px);
+  min-height: 550px;
   width: 100%; }
   .chart .chart-wrap {
     position: absolute;
