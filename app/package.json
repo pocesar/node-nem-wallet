@@ -15,13 +15,14 @@
     "glob": "4.x.x",
     "graceful-fs": "3.x.x",
     "hogan.js": "3.x.x",
+    "humanize": "0.x.x",
     "lodash": "2.x",
     "mkdirp": "0.x.x",
     "request": "2.x.x",
-    "request-progress": "^0.3.1",
+    "request-progress": "0.x.x",
     "rimraf": "2.x.x",
-    "semver": "4.x",
-    "tar": "1.x",
+    "semver": "4.x.x",
+    "tar.gz": "0.x.x",
     "temp": "0.x.x"
   },
   "window": {
@@ -29,7 +30,7 @@
     "height": 768,
     "show": true,
     "title": "NEM Wallet",
-    "toolbar": true,
+    "toolbar": false,
     "icon": "img/logo.png"
   },
   "devDependencies": {},

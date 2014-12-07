@@ -15,6 +15,11 @@ npm run start
 
 <!-- ## Generate executables -->
 
+## Help development
+
+BTC: [18j4eywoio3ah1193vHWQmCG5rmjDL5vPE](bitcoin:18j4eywoio3ah1193vHWQmCG5rmjDL5vPE)
+NXT: NXT-7TJT-8NS2-8QBS-5Y89X
+NEM: ?
 
 ## Credits
 

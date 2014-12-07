@@ -5,10 +5,10 @@
         </div>
         <div class="panel-body clearfix">
             <div class="row">
-                <div class="col-sm-9">
+                <div class="col-sm-7">
                     <dir-pagination-controls template-url="bower_components/angular-utils-pagination/dirPagination.tpl.html"></dir-pagination-controls>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-sm-5">
                     <div class="dropdown pull-right">
                         <button class="btn btn-default dropdown-toggle" type="button" id="filterMenu" data-toggle="dropdown">
                             Filter <span class="caret"></span>
@@ -22,13 +22,14 @@
                         </ul>
                     </div>
 
+                    <div class="pull-right btn btn-default" ng-click="log.clear()">Clear</div>
                     <div class="pull-right btn btn-default" ng-click="log.openSaveAs()">Export</div>
                     <input style="display:none;" id="fileDialog" nwsaveas type="file" value="log.txt" />
                 </div>
             </div>
         </div>
         <ul class="list-group clearfix">
-            <li class="list-group-item clearfix" dir-paginate="data in log.filter() | itemsPerPage: 10">
+            <li class="list-group-item clearfix" dir-paginate="data in log.filter() | itemsPerPage: 10 track by $index">
                 <div class="row">
                     <div class="col-sm-1">{{ data.time | date:'short' }}</div>
                     <div class="col-sm-11"><pre><code>{{ data.msg }}</code></pre></div>

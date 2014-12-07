@@ -5,10 +5,10 @@
         </div>
         <div class="panel-body">
             <div class="chart clearfix">
-                <div ng-class="{'invisible': market.current=='btc'}">
+                <div ng-class="{'invisible': market.current=='btc'}" class="chart-wrap">
                     <canvas tc-chartjs chart-type="line" chart-data="market.usd" chart-options="market.config"></canvas>
                 </div>
-                <div ng-class="{'invisible': market.current=='usd'}">
+                <div ng-class="{'invisible': market.current=='usd'}" class="chart-wrap">
                     <canvas tc-chartjs chart-type="line" chart-data="market.btc" chart-options="market.config"></canvas>
                 </div>
             </div>

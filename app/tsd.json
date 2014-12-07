@@ -40,6 +40,9 @@
     },
     "graceful-fs/graceful-fs.d.ts": {
       "commit": "7c194584f39e29c7f150e0bfc1686a796efc19be"
+    },
+    "adm-zip/adm-zip.d.ts": {
+      "commit": "2d27ff2bdb2e5ff94e6147206ff6fa27ea96a78d"
     }
   }
 }

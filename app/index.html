@@ -24,13 +24,14 @@
                 <div class="collapse navbar-collapse navbar-responsive-collapse" id="collapse-menu">
                     <ul class="nav navbar-nav main-nav-bar">
                         <li ui-sref="ncc" ng-show="global.loaded()" ui-sref-active="active" class=""><a><i class="mdi-action-account-balance-wallet"></i>Wallet</a></li>
+                        <li ui-sref="services" ng-show="global.loaded()" ui-sref-active="active" class=""><a><i class="mdi-hardware-memory"></i>Services</a></li>
                         <li ui-sref="log" ui-sref-active="active" class=""><a><i class="mdi-action-assignment"></i>Log&nbsp;&nbsp;<span ng-bind="global.Log.count()" class="badge"></span></a></li>
                         <li ui-sref="config" ui-sref-active="active" class=""><a><i class="mdi-action-settings"></i>Config</a></li>
                         <li ui-sref="news" ui-sref-active="active" class=""><a><i class="mdi-social-public"></i>News</a></li>
                         <li ui-sref="backup" ng-show="global.loaded()" ui-sref-active="active" class=""><a><i class="mdi-content-save"></i>Backup</a></li>
                         <li ui-sref="market" ui-sref-active="active" class=""><a><i class="mdi-action-trending-up"></i>Market</a></li>
                         <li ui-sref="about" ui-sref-active="active" class=""><a><i class="mdi-action-info"></i>About</a></li>
-                        <li ui-sref="services" ng-show="global.loaded()" ui-sref-active="active" class=""><a><i class="mdi-hardware-memory"></i>Services</a></li>
+
                         <li><a ng-click="global.shutdown()"><i class="mdi-action-settings-power"></i>Quit</a></li>
                     </ul>
                 </div>
@@ -38,6 +39,7 @@
         </nav>
     </div>
 
+    <div progress-bar></div>
     <div growl></div>
 
     <script src="bower_components/jquery/dist/jquery.js"></script>
@@ -52,8 +54,8 @@
     <script src="bower_components/bootstrap/dist/js/bootstrap.js"></script>
     <script src="bower_components/angular-growl-v2/build/angular-growl.js"></script>
     <script src="bower_components/bootstrap-sweetalert/lib/sweet-alert.js"></script>
-    <script src="bower_components/bootstrap-material-design/dist/js/material.js"></script>
     <script src="bower_components/bootstrap-material-design/dist/js/ripples.js"></script>
+    <script src="bower_components/bootstrap-material-design/dist/js/material.js"></script>
     <script id="lang"></script>
     <script src="js/lang.js"></script>
     <script src="js/boot.js"></script>

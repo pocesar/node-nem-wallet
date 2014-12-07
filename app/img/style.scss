@@ -1,23 +1,3 @@
-@font-face {
-    font-family: "Source Sans Pro";
-    font-style: normal;
-    font-weight: 400;
-    src: local("Source Sans Pro"), local("Source_Sans_Pro"), url("source-sans-pro/SourceSansPro-Regular.ttf") format("ttf");
-}
-
-@font-face {
-    font-family: "Source Sans Pro Italic";
-    font-style: italic;
-    font-weight: 400;
-    src: local("Source Sans Pro Italic"), local("Source_Sans_Pro_Italic"), url("source-sans-pro/SourceSansPro-Italic.ttf") format("ttf");
-}
-
-@font-face {
-    font-family: "Source Sans Pro Bold";
-    font-style: normal;
-    font-weight: 700;
-    src: local("Source Sans Pro Bold"), local("Source_Sans_Pro_Bold"), url("source-sans-pro/SourceSansPro-Bold.ttf") format("ttf");
-}
 
 //nem colors
 $orange: rgba(225, 169, 43, 1);
@@ -37,7 +17,6 @@ $wild_sand: rgba(244, 244, 244, 1);
 $color_boston_blue_approx: rgba(60, 141, 188, 1);
 $color_astral_approx: rgba(54, 127, 169, 1);
 $black_125: rgba(0, 0, 0, 0.125);
-$font: 'Source Sans Pro';
 
 //@extend-elements
 //original selectors
@@ -71,7 +50,6 @@ body {
     background: #8E8E8E;
     background-size: cover;
     min-height: 100% !important;
-    font-family: $font;
     font-size: 14px;
     color: #333;
     @extend %extend_1;
@@ -119,16 +97,41 @@ a {
     cursor: pointer;
 }
 
+.progress-bar-wrapper {
+    display: block;
+    position: fixed;
+    top: 0;
+    padding: 10px;
+    left: 0;
+    right: 0;
+    background: $darkgray;
+    z-index: 2;
+    color: #fff;
+    .progress {
+        margin: 0;
+    }
+    .progress-cancel {
+        position: absolute;
+        right: 3px;
+        top: 3px;
+    }
+    .mdi-navigation-cancel {
+        color: $orange;
+        font-size: 18pt;
+    }
+}
+
 .chart {
     position: relative;
     height: calc(550px - #{$nav-bar-height});
     width: 100%;
-    canvas {
+
+    .chart-wrap {
         position: absolute;
         top: 0;
         left: 0;
-        width: 100% !important;
-        height: 100% !important;
+        right: 0;
+        bottom: 0;
     }
 }
 
@@ -219,7 +222,6 @@ p {
 }
 
 .btn {
-    font-family: $font;
     border-radius: 3px;
     border: 1px solid transparent;
     box-shadow: inset 0 -1px 0 0 $black_9;

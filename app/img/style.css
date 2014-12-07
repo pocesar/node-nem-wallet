@@ -1,21 +1,3 @@
-@font-face {
-  font-family: "Source Sans Pro";
-  font-style: normal;
-  font-weight: 400;
-  src: local("Source Sans Pro"), local("Source_Sans_Pro"), url("source-sans-pro/SourceSansPro-Regular.ttf") format("ttf"); }
-
-@font-face {
-  font-family: "Source Sans Pro Italic";
-  font-style: italic;
-  font-weight: 400;
-  src: local("Source Sans Pro Italic"), local("Source_Sans_Pro_Italic"), url("source-sans-pro/SourceSansPro-Italic.ttf") format("ttf"); }
-
-@font-face {
-  font-family: "Source Sans Pro Bold";
-  font-style: normal;
-  font-weight: 700;
-  src: local("Source Sans Pro Bold"), local("Source_Sans_Pro_Bold"), url("source-sans-pro/SourceSansPro-Bold.ttf") format("ttf"); }
-
 body, html {
   overflow: hidden;
   position: relative;
@@ -36,7 +18,6 @@ body {
   background: #8E8E8E;
   background-size: cover;
   min-height: 100% !important;
-  font-family: 'Source Sans Pro';
   font-size: 14px;
   color: #333; }
 
@@ -73,16 +54,36 @@ a {
 [ui-sref], [role="menuitem"], [ng-click] {
   cursor: pointer; }
 
+.progress-bar-wrapper {
+  display: block;
+  position: fixed;
+  top: 0;
+  padding: 10px;
+  left: 0;
+  right: 0;
+  background: #444444;
+  z-index: 2;
+  color: #fff; }
+  .progress-bar-wrapper .progress {
+    margin: 0; }
+  .progress-bar-wrapper .progress-cancel {
+    position: absolute;
+    right: 3px;
+    top: 3px; }
+  .progress-bar-wrapper .mdi-navigation-cancel {
+    color: #e1a92b;
+    font-size: 18pt; }
+
 .chart {
   position: relative;
   height: calc(550px - 105px);
   width: 100%; }
-  .chart canvas {
+  .chart .chart-wrap {
     position: absolute;
     top: 0;
     left: 0;
-    width: 100% !important;
-    height: 100% !important; }
+    right: 0;
+    bottom: 0; }
 
 .ncc-iframe {
   border: 0;
@@ -149,7 +150,6 @@ p {
   color: #e1a92b; }
 
 .btn {
-  font-family: 'Source Sans Pro';
   border-radius: 3px;
   border: 1px solid transparent;
   box-shadow: inset 0 -1px 0 0 rgba(0, 0, 0, 0.09); }

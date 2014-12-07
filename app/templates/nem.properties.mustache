@@ -20,7 +20,7 @@ nem.httpsPort = {{httpsPort}}
 nem.webContext = {{webContext}}
 nem.apiContext = {{apiContext}}
 nem.homePath = {{homePath}}
-nem.shutdownPath = /shutdown
+nem.shutdownPath = {{shutdownPath}}
 
 # Indicates whether or not this node should use a DOS filter
 nem.useDosFilter = {{useDosFilter}}
@@ -45,10 +45,25 @@ nis.bootWithoutAck = {{bootWithoutAck}}
 #[b]>>> we should probably switch this to default to true[/b]
 nis.useBinaryTransport = {{useBinaryTransport}}
 
+# Indicates the ip detection mode:
+# - AutoRequired - auto-IP detection is enabled and is required to succeed in order for this node to boot
+# - AutoOptional - auto-IP detection is enabled but is not required to succeed in order for this node to boot
+# - Disabled - auto-IP detection is disabled
+nis.ipDetectionMode = {{ipDetectionMode}}
+
 # Indicates if the network time should be used for time stamps
 nis.useNetworkTime = {{useNetworkTime}}
+
+# pipe-separated list of NIS APIs that shouldn't be audited.
+nis.nonAuditedApiPaths = {{nonAuditedApiPaths}}
 
 # Maximum number of unlocked accounts.
 # Keep the value within sane
 nis.unlockedLimit = {{unlockedLimit}}
+
+# Maximum number of transactions that a remote NIS should return in the block list returned from /chain/blocks-after.
+nis.maxTransactions = {{maxTransactions}}
+
+# pipe-separated list of additional local ips
+nis.additionalLocalIps = {{additionalLocalIps}}
 {{/nis}}

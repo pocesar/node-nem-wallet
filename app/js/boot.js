@@ -8,10 +8,20 @@ var semver = require('semver');
 var Boot;
 (function (Boot) {
     'use strict';
-    var win = gui.Window.get(), cwd = process.execPath.indexOf('node_modules') !== -1 ? process.cwd() : path.join(path.dirname(process.execPath), '.'), fs = Promise.promisifyAll(require('graceful-fs'));
+    var win = gui.Window.get(), cwd = process.execPath.indexOf('node_modules') !== -1 ? process.cwd() : path.join(path.dirname(process.execPath), '.'), humanize = require('humanize'), tar = require('tar.gz'), fs = Promise.promisifyAll(require('graceful-fs'));
     function templateAsString(filename) {
-        return fs.readFileAsync(path.join(process.cwd(), 'templates', filename)).then(function (v) {
+        return fs.readFileAsync(path.join(cwd, 'templates', filename)).then(function (v) {
             return v.toString();
+        });
+    }
+    function extract(file, path) {
+        return new Promise(function (resolve, reject) {
+            (new tar()).extract(file, path, function (err) {
+                if (err) {
+                    return reject(err);
+                }
+                resolve();
+            });
         });
     }
     var Controllers;
@@ -93,7 +103,12 @@ var Boot;
                         reject(res);
                     });
                     req.on('end', function (res) {
-                        resolve(JSON.parse(total));
+                        try {
+                            resolve(JSON.parse(total));
+                        }
+                        catch (e) {
+                            reject(e);
+                        }
                     });
                 });
             };
@@ -277,13 +292,14 @@ var Boot;
         })();
         Controllers.News = News;
         var Log = (function () {
-            function Log(Log, growl) {
+            function Log(Log, growl, $timeout) {
                 this.Log = Log;
                 this.growl = growl;
+                this.$timeout = $timeout;
                 this.logs = [];
                 this._filterBy = 'none';
                 this.labels = {
-                    'none': 'None',
+                    'none': 'All',
                     'ncc': 'NCC',
                     'nis': 'NIS',
                     'java': 'Java',
@@ -292,6 +308,25 @@ var Boot;
             }
             Log.prototype.by = function (type) {
                 return this.Log.count(type);
+            };
+            Log.prototype.clear = function () {
+                var _this = this;
+                swal({
+                    title: 'Confirmation',
+                    text: 'Are you sure you want to clear ' + this.labels[this._filterBy] + ' logs?',
+                    showCancelButton: true
+                }, function () {
+                    _this.$timeout(function () {
+                        if (_this._filterBy !== 'none') {
+                            _this.Log.logs[_this._filterBy].length = 0;
+                        }
+                        else {
+                            _.forEach(_this.Log.logs, function (logs) {
+                                logs.length = 0;
+                            });
+                        }
+                    });
+                });
             };
             Log.prototype.filterBy = function (type) {
                 switch (type) {
@@ -341,7 +376,7 @@ var Boot;
                 });
                 return this.logs;
             };
-            Log.$inject = ['Log', 'growl'];
+            Log.$inject = ['Log', 'growl', '$timeout'];
             return Log;
         })();
         Controllers.Log = Log;
@@ -386,6 +421,48 @@ var Boot;
     })(Controllers || (Controllers = {}));
     var Directives;
     (function (Directives) {
+        var ProgressBar = (function () {
+            function ProgressBar(Downloads) {
+                this.restrict = 'A';
+                this.scope = {};
+                this.template = [
+                    '<div class="progress-bar-wrapper shadow-z-2" ng-show="info()">',
+                    '<div>Downloading...</div>',
+                    '<div ng-click="cancel()" class="progress-cancel"><i class="mdi-navigation-cancel"></i></div>',
+                    '<div class="clearfix">',
+                    '<div class="progress progress-striped active">',
+                    '<div class="progress-bar" ng-style="{width: info().progress + \'%\'}"></div>',
+                    '</div>',
+                    '</div>',
+                    '<div class="progress-bar-label">{{ info().label }} from {{ info().url }}</div>',
+                    '</div>'
+                ].join('');
+                this.link = function (scope) {
+                    scope['info'] = function () {
+                        return Downloads.current();
+                    };
+                    scope['cancel'] = function () {
+                        var current;
+                        if ((current = scope['info']())) {
+                            swal({
+                                text: 'Cancel the download?',
+                                title: 'Confirm',
+                                type: 'warning',
+                                showCancelButton: true
+                            }, function () {
+                                current.cancel = true;
+                            });
+                        }
+                    };
+                };
+            }
+            ProgressBar.instance = function () {
+                var _this = this;
+                return ['Downloads', function (Downloads) { return new _this(Downloads); }];
+            };
+            return ProgressBar;
+        })();
+        Directives.ProgressBar = ProgressBar;
         var ServerLog = (function () {
             function ServerLog(Log) {
                 this.Log = Log;
@@ -396,7 +473,9 @@ var Boot;
                     scope.$watch(function () {
                         return Log.last();
                     }, function (item) {
-                        scope['item'] = item;
+                        if (item && item.group !== 'nis') {
+                            scope['item'] = item;
+                        }
                     }, true);
                 };
             }
@@ -469,12 +548,11 @@ var Boot;
                 this.template = this.Hogan.compile(templateAsString('nem.properties.mustache'));
                 this.config = {};
                 this.version = '';
-                this.downloaded = 0;
                 this.set(data);
             }
             NemConfig.prototype.path = function (more) {
                 if (more === void 0) { more = []; }
-                return path.join.apply(path, [this.config.folder, this.name].concat(more));
+                return path.join.apply(path, [this.config.folder, 'package', this.name].concat(more));
             };
             NemConfig.prototype.render = function (data) {
                 if (data === void 0) { data = {}; }
@@ -490,10 +568,31 @@ var Boot;
                 return this;
             };
             NemConfig.prototype.kill = function (signal) {
+                var _this = this;
                 if (signal === void 0) { signal = 'SIGTERM'; }
-                if (this.child) {
-                    this.child.kill(signal);
-                }
+                return new Promise(function (resolve, reject) {
+                    if (_this.child) {
+                        if (_this.config.shutdownPath) {
+                            request.get(_this.config.shutdownPath, {
+                                timeout: 10
+                            }, function () {
+                                _this.Log.add('Process exited', _this.name);
+                                resolve(true);
+                            }).on('error', function () {
+                                _this.Log.add('Process didn\'t stop in time, killing', _this.name);
+                                _this.child.kill(signal);
+                                resolve(false);
+                            });
+                        }
+                        else {
+                            _this.Log.add('Process don\'t have a shutdownPath, killing', _this.name);
+                            _this.child.kill(signal);
+                        }
+                    }
+                    else {
+                        resolve(true);
+                    }
+                });
             };
             NemConfig.prototype.ensurePath = function () {
                 var _this = this;
@@ -513,15 +612,21 @@ var Boot;
                     _this.ensurePath().then(function () {
                         fs.statAsync(_this.path()).then(function (stat) {
                             resolve();
-                        }, function () {
-                            _this.Log.add('NIS not found, downloading...', 'client');
-                            var progress = require('request-progress'), filename = 'nis-ncc-' + _this.NEM.version + '.tgz', file = fs.createWriteStream(path.join(cwd, 'temp', filename)), dl = progress(request.get('http://bob.nem.ninja/' + filename)).on('progress', function (state) {
-                                _this.downloaded = state.percent;
-                                console.log(state);
-                            }).on('error', reject).pipe(file).on('error', reject).on('close', function () {
-                                _this.Log.add('NEM downloaded', 'client');
-                                resolve();
-                            });
+                        }).catch(function () {
+                            var filename = 'nis-ncc-' + _this.NEM.version + '.tgz', filePath = path.join(cwd, 'temp', filename);
+                            fs.statAsync(filePath).catch(function () {
+                                return _this.Download.get({
+                                    url: 'http://bob.nem.ninja/' + filename,
+                                    filename: filePath,
+                                    label: filename
+                                });
+                            }).then(function () {
+                                _this.Log.add('NEM is downloaded, extracting...', 'client');
+                                extract(filePath, _this.config.folder).then(function () {
+                                    _this.Log.add('NEM extracted', 'client');
+                                    resolve();
+                                }, reject);
+                            }, reject);
                         });
                     }, reject);
                 });
@@ -529,9 +634,10 @@ var Boot;
             NemConfig.prototype.run = function () {
                 var _this = this;
                 return new Promise(function (resolve, reject) {
-                    _this.child = child_process.spawn('java', ['-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
-                        cwd: path.join(_this.config.folder, _this.name),
-                        env: process.env
+                    _this.child = _this.Java.exec(['-Xms512M', '-Xmx1G', '-cp', '.;./*;../libs/*', 'org.nem.core.deploy.CommonStarter'], {
+                        cwd: _this.path(),
+                        env: process.env,
+                        detached: true
                     });
                     _this.child.stderr.on('data', function (data) {
                         if (!data.length) {
@@ -550,14 +656,21 @@ var Boot;
                         }
                     });
                     _this.child.stdout.on('data', function (data) {
-                        _this.Log.add(data.toString(), _this.name);
+                        var str = data.toString();
+                        if (!/(exiting|entering|Mapped)/.test(str) || /(WARNING|ERROR|FATAL)/.test(str)) {
+                            _this.Log.add(str, _this.name);
+                        }
                     });
                     _this.child.on('close', function (errCode) {
-                        var msg = _this.config.shortServerName + ' closed unexpectedly';
-                        _this.Log.add(msg, _this.name);
+                        if (errCode !== 0) {
+                            var msg = _this.config.shortServerName + ' closed unexpectedly';
+                            _this.Log.add(msg, _this.name);
+                        }
                     });
                     _this.child.on('error', function (err) {
-                        _this.Log.add(err.message, _this.name);
+                        if (err['code'] !== 'ENOENT') {
+                            _this.Log.add(err.message, _this.name);
+                        }
                         reject(err);
                     });
                 });
@@ -569,24 +682,31 @@ var Boot;
             function NemProperties() {
                 var _this = this;
                 this.instances = {};
-                this.$get = ['Log', 'NEM', function (Log, NEM) {
+                this.$get = ['Log', 'NEM', 'Downloader', 'Java', function (Log, NEM, Download, Java) {
                     return {
                         instance: function (instance) {
                             _this.instances[instance].Log = Log;
                             _this.instances[instance].NEM = NEM;
+                            _this.instances[instance].Download = Download;
+                            _this.instances[instance].Java = Java;
                             return _this.instances[instance];
                         },
                         killAll: function () {
-                            _.forEach(_this.instances, function (instance) {
-                                instance.kill();
-                            });
+                            return Promise.reduce(_.keys(_this.instances), function (total, instance) {
+                                return _this.instances[instance].kill();
+                            }, false);
                         }
                     };
                 }];
             }
             NemProperties.prototype.instance = function (name, data) {
                 if (data === void 0) { data = {}; }
-                return this.instances[name] = new NemConfig(name, data);
+                if (this.instances[name]) {
+                    return this.instances[name];
+                }
+                else {
+                    return this.instances[name] = new NemConfig(name, data);
+                }
             };
             return NemProperties;
         })();
@@ -594,6 +714,88 @@ var Boot;
     })(Providers || (Providers = {}));
     var Services;
     (function (Services) {
+        ;
+        ;
+        var Downloads = (function () {
+            function Downloads() {
+                this.queue = [];
+            }
+            Downloads.prototype.add = function (info) {
+                this.queue.push(info);
+            };
+            Downloads.prototype.remove = function (info) {
+                var index;
+                if ((index = this.queue.indexOf(info)) !== -1) {
+                    this.queue.splice(index, 1);
+                }
+            };
+            Downloads.prototype.current = function () {
+                return this.queue[0];
+            };
+            return Downloads;
+        })();
+        Services.Downloads = Downloads;
+        var Downloader = (function () {
+            function Downloader($rootScope, Downloads, Log) {
+                this.$rootScope = $rootScope;
+                this.Downloads = Downloads;
+                this.Log = Log;
+            }
+            Downloader.prototype.get = function (config) {
+                var _this = this;
+                var info = {
+                    filename: config.filename,
+                    url: config.url,
+                    progress: 0,
+                    label: config.label,
+                    cancel: false
+                };
+                var started = false;
+                return new Promise(function (resolve, reject) {
+                    var progress = require('request-progress'), fileStream = fs.createWriteStream(config.filename), req = request.get(config.url);
+                    progress(req).on('progress', function (state) {
+                        if (!started) {
+                            started = true;
+                            _this.Log.add('Starting download for ' + info.label + ' (' + humanize.filesize(state.total) + ')', 'client');
+                            _this.Downloads.add(info);
+                        }
+                        _this.$rootScope.$applyAsync(function () {
+                            if (info.cancel) {
+                                req.abort();
+                            }
+                            else {
+                                info.progress = state.percent;
+                                info.size = state.total;
+                            }
+                        });
+                    }).on('error', function (error) {
+                        _this.$rootScope.$applyAsync(function () {
+                            _this.Downloads.remove(info);
+                            reject(error);
+                        });
+                    }).pipe(fileStream).on('error', function (error) {
+                        _this.$rootScope.$applyAsync(function () {
+                            _this.Downloads.remove(info);
+                            reject(error);
+                        });
+                    }).on('close', function () {
+                        _this.$rootScope.$applyAsync(function () {
+                            if (info.cancel) {
+                                reject(new Error(_this.Log.add('Download canceled for ' + info.label, 'client')));
+                            }
+                            else {
+                                _this.Log.add('File ' + info.label + ' downloaded to ' + info.filename, 'client');
+                                resolve();
+                            }
+                            _this.Downloads.remove(info);
+                        });
+                    });
+                });
+            };
+            Downloader.$inject = ['$rootScope', 'Downloads', 'Log'];
+            return Downloader;
+        })();
+        Services.Downloader = Downloader;
         var Log = (function () {
             function Log($timeout) {
                 this.$timeout = $timeout;
@@ -628,7 +830,7 @@ var Boot;
                     this.logs[group] = [];
                 }
                 this.$timeout(function () {
-                    _this.logs[group].unshift({ time: Date.now(), msg: msg });
+                    _this.logs[group].unshift({ time: Date.now(), msg: msg, group: group });
                 }, 0);
                 return msg;
             };
@@ -645,36 +847,30 @@ var Boot;
         })();
         Services.Log = Log;
         var Java = (function () {
-            function Java(Log) {
+            function Java(Log, Downloader) {
+                var _this = this;
                 this.Log = Log;
-                this.downloaded = 0;
+                this.Downloader = Downloader;
                 this.latest = '?';
                 this.version = {
                     semver: '?',
                     full: '?'
                 };
                 this.javaBin = 'java';
-            }
-            Java.prototype.exec = function (command) {
-                if (command === void 0) { command = []; }
-                return child_process.spawn(this.javaBin, command, {
-                    env: process.env
+                this.jrePath = path.join(cwd, 'jre');
+                var exec = this.getUrl().exec;
+                fs.statAsync(path.join(this.jrePath, 'bin', exec)).then(function () {
+                    _this.javaBin = path.join(_this.jrePath, 'bin', exec);
+                }, function () {
+                    _this.javaBin = exec;
                 });
-            };
-            Java.prototype._progress = function () {
-                return function (res, url, cb) {
-                    console.log(arguments);
-                    if (res.headers['content-length']) {
-                        var total = parseInt(res.headers['content-length'], 10), progress = 0;
-                        res.on('data', function (data) {
-                            progress += data.length;
-                            this.downloaded = (progress / total) * 100;
-                        });
-                        res.on('end', function () {
-                            cb();
-                        });
-                    }
-                };
+            }
+            Java.prototype.exec = function (command, options) {
+                if (command === void 0) { command = []; }
+                if (options === void 0) { options = {}; }
+                return child_process.spawn(this.javaBin, command, _.defaults({
+                    env: process.env
+                }, options));
             };
             Java.prototype.downloadAndInstall = function () {
                 var _this = this;
@@ -684,15 +880,14 @@ var Boot;
                         return reject(new Error('Could not find suitable OS'));
                     }
                     _this.Log.add('Beginning Java download', 'java');
-                    var progress = require('request-progress'), filename = path.join(cwd, 'temp', url.filename), file = fs.createWriteStream(filename), dl = progress(request.get(url.url)).on('progress', function (state) {
-                        _this.downloaded = state.percent;
-                    }).on('error', function (err) {
-                        reject(err);
-                    }).pipe(file).on('error', function (err) {
-                        reject(err);
-                    }).on('close', function () {
-                        var _path = path.join(cwd, 'jre'), batch = path.join(cwd, 'temp', url.batch);
-                        fs.writeFileAsync(batch, [filename, '/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _path + '"', '/L java.log'].join(' ')).then(function () {
+                    var filename = path.join(cwd, 'temp', url.filename);
+                    _this.Downloader.get({
+                        label: url.filename,
+                        filename: filename,
+                        url: url.url
+                    }).then(function () {
+                        var batch = path.join(cwd, 'temp', url.batch);
+                        fs.writeFileAsync(batch, [filename, '/s', 'WEB_JAVA=0', 'INSTALLDIR="' + _this.jrePath + '"', '/L java.log'].join(' ')).then(function () {
                             try {
                                 var e = child_process['execFile'];
                                 var child = e(batch, {
@@ -704,7 +899,7 @@ var Boot;
                                 child.on('exit', function () {
                                     _this.version.semver = _this.latest.split('_')[0];
                                     _this.version.full = _this.latest;
-                                    _this.javaBin = path.join(_path, 'bin', 'java');
+                                    _this.javaBin = path.join(_this.jrePath, 'bin', 'java');
                                     resolve();
                                 });
                             }
@@ -712,7 +907,7 @@ var Boot;
                                 reject(new Error('Java couldn\'t be installed automatically, execute the file "install-java" in the temp directory'));
                             }
                         }, reject);
-                    });
+                    }, reject);
                 });
             };
             Java.prototype.getUrl = function () {
@@ -743,36 +938,53 @@ var Boot;
                         }
                         _this.Log.add('Latest Java version ' + version, 'java');
                         _this.latest = version;
-                        var latest = _this.latest.split('_')[0], revision = _this.latest.split('_')[1], child = _this.exec(['-version']);
+                        var latest = _this.latest.split('_')[0], revision = parseInt(_this.latest.split('_')[1]), child = _this.exec(['-version']);
                         child.on('error', function (err) {
-                            reject(err);
+                            if (err['code'] === 'ENOENT') {
+                                _this.Log.add('Java 8 not installed locally', 'java');
+                            }
+                            else {
+                                _this.Log.add(err.message, 'java');
+                            }
+                            _this.downloadAndInstall().then(function () {
+                                _this.Log.add('Java downloaded and installed', 'java');
+                                resolve();
+                            }, function () {
+                                _this.Log.add('Failed to download Java, install manually on ' + Services.Java.javaUrl, 'java');
+                                reject();
+                            });
                         });
+                        var gotFirstLine = false;
                         child.stderr.on('data', function (result) {
+                            if (gotFirstLine) {
+                                return;
+                            }
                             var version = result.toString().match(Java.versionRegex), localrevision;
                             if (version && typeof version[2] === 'string') {
+                                gotFirstLine = true;
                                 try {
                                     _this.version.semver = version[2];
                                     _this.version.full = version[1];
-                                    localrevision = version[1].split('_')[1];
-                                    if (semver.gte(version[2], latest, true) && ~~localrevision >= ~~revision) {
+                                    localrevision = parseInt(version[1].split('_')[1]);
+                                    if (semver.gte(version[2], latest, true) && localrevision >= revision) {
                                         resolve();
                                     }
                                     else {
-                                        reject(new Error('Java is outdated'));
+                                        reject(new Error(_this.Log.add('Java is outdated', 'java')));
                                     }
                                 }
                                 catch (e) {
-                                    reject(new Error('Could not determine Java version, install manually from ' + _this.getUrl().url));
+                                    reject(new Error(_this.Log.add('Could not determine Java version, install manually from ' + _this.getUrl().url, 'java')));
                                 }
                             }
                             else {
-                                reject(new Error('No Java version found'));
+                                reject(new Error(_this.Log.add('No Java version found', 'java')));
                             }
                         });
                     });
                 });
             };
-            Java.$inject = ['Log'];
+            Java.$inject = ['Log', 'Downloader'];
             Java.javaUrl = 'http://www.oracle.com/technetwork/java/javase/downloads/jre8-downloads-2133155.html';
             Java.jreRegex = 'https?:\/\/download\.oracle\.com\/otn-pub\/java\/jdk\/[^\/]+?\/jre-[^\-]+?-';
             Java.versionRegex = /java version "(([\.\d]+)[^"]+)"/;
@@ -780,78 +992,93 @@ var Boot;
                 'darwin': {
                     'arm': {
                         url: '',
-                        filename: ''
+                        filename: '',
+                        exec: ''
                     },
                     'ia32': {
                         url: '',
-                        filename: ''
+                        filename: '',
+                        exec: ''
                     },
                     'x64': {
                         url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97361',
                         filename: 'jre.dmg',
-                        batch: 'install-java.sh'
+                        batch: 'install-java.sh',
+                        exec: 'java'
                     }
                 },
                 'freebsd': {
                     'arm': {
                         url: '',
-                        filename: ''
+                        filename: '',
+                        exec: ''
                     },
                     'ia32': {
                         url: '',
-                        filename: ''
+                        filename: '',
+                        exec: ''
                     },
                     'x64': {
                         url: '',
-                        filename: ''
+                        filename: '',
+                        exec: ''
                     }
                 },
                 'linux': {
                     'arm': {
                         url: '',
-                        filename: ''
+                        filename: '',
+                        exec: ''
                     },
                     'ia32': {
                         url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97358',
                         filename: 'jre.tar.gz',
-                        batch: 'install-java.sh'
+                        batch: 'install-java.sh',
+                        exec: 'java'
                     },
                     'x64': {
                         url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97360',
                         filename: 'jre.tar.gz',
-                        batch: 'install-java.sh'
+                        batch: 'install-java.sh',
+                        exec: 'java'
                     }
                 },
                 'sunos': {
                     'arm': {
                         url: '',
-                        filename: ''
+                        filename: '',
+                        exec: ''
                     },
                     'ia32': {
                         url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97363',
                         filename: 'jre.tar.gz',
-                        batch: 'install-java.sh'
+                        batch: 'install-java.sh',
+                        exec: ''
                     },
                     'x64': {
                         url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=97364',
                         filename: 'jre.tar.gz',
-                        batch: 'install-java.sh'
+                        batch: 'install-java.sh',
+                        exec: ''
                     }
                 },
                 'win32': {
                     'arm': {
                         url: '',
-                        filename: ''
+                        filename: '',
+                        exec: ''
                     },
                     'ia32': {
                         url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98426',
                         filename: 'jre.exe',
-                        batch: 'install-java.cmd'
+                        batch: 'install-java.cmd',
+                        exec: 'java.exe'
                     },
                     'x64': {
                         url: 'http://javadl.sun.com/webapps/download/AutoDL?BundleId=98428',
                         filename: 'jre.exe',
-                        batch: 'install-java.cmd'
+                        batch: 'install-java.cmd',
+                        exec: 'java.exe'
                     }
                 }
             };
@@ -871,7 +1098,7 @@ var Boot;
     ]).value('NEM', {
         version: '0.0.0',
         beta: false
-    }).controller('Global', Controllers.Global).provider('WalletConfig', Providers.WalletConfig).service('Java', Services.Java).service('Log', Services.Log).directive('serverLog', Directives.ServerLog.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config(['$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', 'growlProvider', function ($stateProvider, $locationProvider, $urlRouterProvider, NemPropertiesProvider, WalletConfig, growlProvider) {
+    }).controller('Global', Controllers.Global).provider('WalletConfig', Providers.WalletConfig).service('Java', Services.Java).service('Log', Services.Log).service('Downloads', Services.Downloads).service('Downloader', Services.Downloader).directive('serverLog', Directives.ServerLog.instance()).directive('progressBar', Directives.ProgressBar.instance()).provider('NemProperties', Providers.NemProperties).directive('loading', Directives.Loading.instance()).config(['$stateProvider', '$locationProvider', '$urlRouterProvider', 'NemPropertiesProvider', 'WalletConfigProvider', 'growlProvider', function ($stateProvider, $locationProvider, $urlRouterProvider, NemPropertiesProvider, WalletConfig, growlProvider) {
         growlProvider.globalPosition('bottom-right');
         WalletConfig.load();
         NemPropertiesProvider.instance('nis', {
@@ -887,7 +1114,12 @@ var Boot;
             nodeLimit: 20,
             bootWithoutAck: false,
             useBinaryTransport: true,
-            useNetworkTime: true
+            useNetworkTime: true,
+            ipDetectionMode: 'AutoRequired',
+            nonAuditedApiPaths: '/heartbeat|/status|/chain/height',
+            maxTransactions: 10000,
+            additionalLocalIps: '',
+            shutdownPath: '/shutdown'
         });
         NemPropertiesProvider.instance('ncc', {
             shortServerName: 'Ncc',
@@ -900,6 +1132,7 @@ var Boot;
             webContext: '/ncc/web',
             apiContext: '/ncc/api',
             homePath: '/index.html',
+            shutdownPath: '/shutdown',
             useDosFilter: false
         });
         $urlRouterProvider.otherwise('/');
@@ -968,39 +1201,12 @@ var Boot;
             NEM.version = v[1];
             NEM.beta = typeof v[2] !== 'undefined' && v[2] === 'BETA';
             Log.add('Latest NEM version is ' + NEM.version + (NEM.beta ? ' (BETA)' : ''), 'client');
-            Java.decide().catch(function (_err) {
-                var err = _err;
-                if (err['code'] === 'ENOENT') {
-                    Log.add('Java 8 not installed locally', 'java');
-                }
-                else {
-                    Log.add(err.message, 'java');
-                }
-                return Java.downloadAndInstall();
-            }).catch(function (_err) {
-                Log.add(_err.message, 'java');
-                return Java.downloadAndInstall().then(function () {
-                    Log.add('Java downloaded and installed', 'java');
-                    return true;
-                }, function (err) {
-                    Log.add(err.message, 'java');
-                    return new Error('Failed to download Java, install manually on ' + Services.Java.javaUrl);
-                });
-            }).then(function () {
-                return NemProperties.instance('nis').run().then(function () {
+            Java.decide().then(function () {
+                return NemProperties.instance('nis').download().then(function () {
+                    return NemProperties.instance('nis').run();
+                }).then(function () {
                     return NemProperties.instance('ncc').run();
                 });
-            }, function (err) {
-                Log.add(err.message, 'java');
-            }).catch(function (err) {
-                Log.add(err.message, 'nis');
-                if (err.code === 'ENOENT') {
-                    return NemProperties.instance('nis').download().then(function () {
-                        return NemProperties.instance('nis').run();
-                    }).then(function () {
-                        return NemProperties.instance('ncc').run();
-                    });
-                }
             }).then(function () {
                 $timeout(function () {
                     WalletConfig.loaded = true;
@@ -1008,13 +1214,21 @@ var Boot;
                 });
             });
         });
-        process.on('exit', function () {
-            NemProperties.killAll();
+        function killAll() {
+            NemProperties.killAll().then(function () {
+                process.exit();
+            });
+        }
+        process.on('exit', killAll).on('SIGTERM', function () {
+            NemProperties.killAll().then(killAll);
+        }).on('SIGINT', function () {
+            NemProperties.killAll().then(killAll);
         });
         win.on('close', function () {
-            win.hide();
-            NemProperties.killAll();
-            gui.App.quit();
+            NemProperties.killAll().then(function () {
+                win.hide();
+                gui.App.quit();
+            });
         });
         win.on('new-win-policy', function (frame, url, policy) {
             policy.ignore();
