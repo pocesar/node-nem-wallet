@@ -682,28 +682,26 @@ module Providers {
             return this;
         }
 
-        url() {
-            return this.config.protocol + '://' + this.config.host + ':' + this.config[this.config.protocol + 'Port'] + this.config.homePath;
+        url(append: string = '') {
+            return this.config.protocol + '://' +
+                   this.config.host + ':' +
+                   this.config[this.config.protocol + 'Port'] +
+                   (this.config[append] ? this.config[append] : '');
         }
 
         kill(signal: string = 'SIGTERM'): Promise<boolean> {
             return new Promise<boolean>((resolve: any, reject: any) => {
                 if (this.child) {
-                    if (this.config.shutdownPath) {
-                        request.get(this.config.shutdownPath, {
-                            timeout: 10
-                        }, () => {
-                            this.Log.add('Process exited', this.name);
-                            resolve(true);
-                        }).on('error', () => {
-                            this.Log.add('Process didn\'t stop in time, killing', this.name);
-                            this.child.kill(signal);
-                            resolve(false);
-                        });
-                    } else {
-                        this.Log.add('Process don\'t have a shutdownPath, killing', this.name);
+                    request.get(this.url('shutdownPath'), {
+                        timeout: 10
+                    }, () => {
+                        this.Log.add('Process exited', this.name);
+                        resolve(true);
+                    }).on('error', () => {
+                        this.Log.add('Process didn\'t stop in time, killing', this.name);
                         this.child.kill(signal);
-                    }
+                        resolve(false);
+                    });
                 } else {
                     resolve(true);
                 }
