@@ -101,7 +101,7 @@ module Controllers {
                 showCancelButton: true,
                 closeOnConfirm: true
             }, () => {
-                process.exit();
+                gui.App.quit();
             });
         }
 
@@ -760,12 +760,18 @@ module Providers {
                     detached: true
                 });
 
+                var addFiltered: Function = (str: string) => {
+                    if (!/(exiting|entering|Mapped|INDIRECT)/.test(str) || /(WARNING|ERROR|FATAL|SEVERE)/.test(str)) {
+                        this.Log.add(str, this.name);
+                    }
+                };
+
                 this.child.stderr.on('data', (data: Buffer) => {
                     if (!data.length) {
                         return;
                     }
                     var str: string = data.toString();
-                    this.Log.add(str, this.name);
+                    addFiltered(str);
                     if (!this.version){
                         var matches: string[];
                         if ((matches = str.match(/version <([^\>]+?)>/)) && matches[1]) {
@@ -778,10 +784,7 @@ module Providers {
                 });
 
                 this.child.stdout.on('data', (data: Buffer) => {
-                    var str: string = data.toString();
-                    if (!/(exiting|entering|Mapped)/.test(str) || /(WARNING|ERROR|FATAL)/.test(str)) {
-                        this.Log.add(str, this.name);
-                    }
+                    addFiltered(data.toString());
                 });
 
                 this.child.on('close', (errCode: number) => {

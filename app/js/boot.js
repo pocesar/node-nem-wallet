@@ -411,8 +411,8 @@ var Boot;
         Controllers.Main = Main;
         var NCC = (function () {
             function NCC(NEM, $sce) {
-                var config = NEM.instance('ncc').config;
-                this.url = $sce.trustAsResourceUrl(config.protocol + '://' + config.host + ':' + config[config.protocol + 'Port'] + config.homePath);
+                var config = NEM.instance('ncc');
+                this.url = $sce.trustAsResourceUrl(config.url());
             }
             NCC.$inject = ['NemProperties', '$sce'];
             return NCC;
@@ -567,27 +567,25 @@ var Boot;
                 }
                 return this;
             };
+            NemConfig.prototype.url = function (append) {
+                if (append === void 0) { append = ''; }
+                return this.config.protocol + '://' + this.config.host + ':' + this.config[this.config.protocol + 'Port'] + (this.config[append] ? this.config[append] : '');
+            };
             NemConfig.prototype.kill = function (signal) {
                 var _this = this;
                 if (signal === void 0) { signal = 'SIGTERM'; }
                 return new Promise(function (resolve, reject) {
                     if (_this.child) {
-                        if (_this.config.shutdownPath) {
-                            request.get(_this.config.shutdownPath, {
-                                timeout: 10
-                            }, function () {
-                                _this.Log.add('Process exited', _this.name);
-                                resolve(true);
-                            }).on('error', function () {
-                                _this.Log.add('Process didn\'t stop in time, killing', _this.name);
-                                _this.child.kill(signal);
-                                resolve(false);
-                            });
-                        }
-                        else {
-                            _this.Log.add('Process don\'t have a shutdownPath, killing', _this.name);
+                        request.get(_this.url('shutdownPath'), {
+                            timeout: 10
+                        }, function () {
+                            _this.Log.add('Process exited', _this.name);
+                            resolve(true);
+                        }).on('error', function () {
+                            _this.Log.add('Process didn\'t stop in time, killing', _this.name);
                             _this.child.kill(signal);
-                        }
+                            resolve(false);
+                        });
                     }
                     else {
                         resolve(true);
